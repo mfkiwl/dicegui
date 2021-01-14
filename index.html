@@ -16,8 +16,6 @@
     if (window.module)
         module = window.module;
 </script>
-<!-- Tiff -->
-<script src="./js/tiff.js" defer></script>
 <!-- Custom JS -->
 <!-- <script type="text/javascript" src="./js/loader.js"></script>  -->
 <script src="./js/requires.js" defer></script>
@@ -25,19 +23,14 @@
 <script src="./js/dice.js" defer></script>
 <script src="./js/utils.js" defer></script>
 <script src="./js/file_utils.js" defer></script>
-<script src="./js/draw.js" defer></script>
 <script src="./js/parser.js" defer></script>
-<script src="./js/plotly.min.js" defer></script>
+<script src="./js/plotly-mod.min.js"></script>
+<script src="./js/preview.js" defer></script>
 <script src="./js/live_plot_utils.js" defer></script>
 <script src="./js/live_plot.js" defer></script>
 <script src="./js/live_plot_line.js" defer></script>
 <script src="./js/live_plot_tracklib.js" defer></script>
 <script src="./js/show_tracking.js" defer></script>
-<!-- SVG -->
-<script src="./js/svg.js" defer></script>
-<script src="./js/svg.draggable.min.js" defer></script>
-<!-- Panzoom -->
-<script src="./js/jquery.panzoom.min.js" defer></script>
 <script src="./js/viewer.js" defer></script>
 <!-- Local style sheet -->
 <link rel="stylesheet" type="text/css" href="style.css">
@@ -70,12 +63,25 @@
       <div class="fixed-col">
         <h1>IMAGES</h1>
         <p class="nav-item non-tracklib-tools">file select method:</p>
-        <select id="fileSelectMode" class="non-tracklib-tools" style="width: 95%; margin-bottom: 10px; margin-left: 10px;">
+        <select id="fileSelectMode" class="non-tracklib-tools"
+          style="width: 95%; margin-bottom: 10px; margin-left: 10px;"
+        >
           <option value="list">select individually</option>
           <option value="sequence">sequence of images</option>
           <option value="cine">.cine video frames</option>
         </select>
-
+        <p class="nav-item">frames:</p>
+        <div style="display: block" id="rangePreview" class="nav-item">
+          <span id="startPreviewSpan" style="display: block; float: left; width: 33%;"></span> <span
+            id="currentPreviewSpan"
+            style="display: block; float: left; text-align: center; width: 33%;"
+          ></span> <span id="endPreviewSpan"
+            style="display: block; text-align: right; float: right; width: 33%;"
+          ></span>
+        </div>
+        <input class="nav-item" style="width: 95%;" id="frameScroller" type="range" min="0" max="1"
+          defaultValue="0" value="0" step="1"
+        >
         <div id="leftImageMenu">
           <!-- begin list input -->
           <div class="nav-list">
@@ -99,7 +105,7 @@
           <!-- end list input -->
           <!-- begin sequence input -->
           <div class="nav-sequence">
-            <div id="changeImageFolder" class="action-li">
+            <div id="changeImageFolder" class="action-li" style="padding-top: 8px;">
               <i class="material-icons md-dark md-br-pad">folder</i> image folder
             </div>
             <div id="imageFolder" style="word-wrap: break-word;">
@@ -125,10 +131,8 @@
             <input class="nav-two-cam" type="text" id="stereoRightSuffix" name="stereoRightSuffix"
               value="_1" style="width: 100%;"
             >
-            <div class="nav-three-cam">trinoc middle suffix</div>
-            <input class="nav-three-cam" type="text" id="stereoMiddleSuffix"
-              name="stereoMiddleSuffix" value="_2" style="width: 100%;"
-            >
+            <div class="nav-one-cam">suffix</div>
+            <input class="nav-one-cam" type="text" id="imageSuffix" name="imageSuffix" value="" style="width: 100%;">
             <div>extension</div>
             <input type="text" id="imageExtension" name="imageExtension" value=""
               style="width: 100%; margin-bottom: 10px;"
@@ -139,10 +143,10 @@
             >
               <span id="imageSequencePreviewSpan"></span>
             </div>
-            <label id="loadRef" class="action-li"> <i
+            <!-- <label id="loadRef" class="action-li"> <i
               class="material-icons md-dark md-br-pad"
             >add_a_photo</i> refresh preview
-            </label>
+            </label>  -->
           </div>
           <!-- end sequence input -->
           <!-- begin cine input -->
@@ -169,34 +173,14 @@
               </div>
             </div>
             <!-- end nav two cam -->
-            <div class="nav-three-cam">
-              <label for="middleCineInput" class="custom-file-input action-li"> <i
-                class="material-icons md-dark md-br-pad"
-              >camera_roll</i> load trinoc cine
-              </label> <input id="middleCineInput" type="file" accept=".cine">
-              <div id="cineMiddlePreview" style="word-wrap: break-word; margin-bottom: 20px;"
-                class="nav-item"
+            <div class="nav-item tracklib-tools" style="margin-bottom: 5px;">
+              go to frame <input class="nav-item" type="text" id="cineGoToIndex"
+                name="cineGoToIndex" value="0" style="width: 35%;"
               >
-                <span id="cineMiddlePreviewSpan"></span>
-              </div>
             </div>
-            <!-- end nav three cam -->
-            <p class="nav-item">frames:</p>
-            <div style="display: block" id="cineRangePreview" class="nav-item">
-              <span id="cineStartPreviewSpan" style="display: block; float: left; width: 33%;"></span>
-              <span id="cineCurrentPreviewSpan"
-                style="display: block; float: left; text-align: center; width: 33%;"
-              ></span> <span id="cineEndPreviewSpan"
-                style="display: block; text-align: right; float: right; width: 33%;"
-              ></span>
-            </div>
-            <input class="nav-item" style="width: 95%;" id="frameScroller" type="range" min="0"
-              max="1" defaultValue="0" value="0" step="1"
-            >
-            <div class="nav-item tracklib-tools" style="margin-bottom:5px;">go to frame <input class="nav-item" type="text" id="cineGoToIndex" name="cineGoToIndex" value="0" style="width: 35%;"></div>
             <div class="nav-item">ref frame</div>
-            <input class="nav-item" type="text" id="cineRefIndex" name="cineRefIndex" value="0"
-              style="width: 95%;"
+            <input class="nav-item update-tracklib-preview" type="text" id="cineRefIndex"
+              name="cineRefIndex" value="0" style="width: 95%;"
             >
             <div class="nav-item">start frame</div>
             <input class="nav-item" type="text" id="cineStartIndex" name="cineStartIndex" value="0"
@@ -210,34 +194,14 @@
             <input class="nav-item" type="text" id="cineSkipIndex" name="cineSkipIndex" value="1"
               style="width: 95%;"
             >
-            <div class="nav-item">frame rate <span id="cineFrameRatePreviewSpan" style="display: block; float: right; width: 33%;"></span></div>
+            <div class="nav-item">
+              frame rate <span id="cineFrameRatePreviewSpan"
+                style="display: block; float: right; width: 33%;"
+              ></span>
+            </div>
           </div>
           <!-- end cine input -->
         </div>
-        <!-- start nav-three-cam -->
-        <div id="middleImageMenu" class="nav-three-cam">
-          <!-- start list -->
-          <div class="nav-list">
-            <div class="nav-three-cam nav-item">MIDDLE</div>
-            <label for="middleRefInput" class="custom-file-input action-li"> <i
-              class="material-icons md-dark md-br-pad"
-            >add_a_photo</i> load reference
-            </label> <input id="middleRefInput" type="file" accept="image/*">
-            <div id="refImageTextMiddle" style="word-wrap: break-word; margin-left: 10px;">
-              <span id="refImageTextMiddleSpan"></span>
-            </div>
-            <label for="middleDefInput" class="custom-file-input action-li"> <i
-              class="material-icons md-dark md-br-pad"
-            >add_a_photo</i> load deformed
-            </label> <input id="middleDefInput" type="file" multiple accept="image/*">
-            <div id="defImageListMiddleContainer" class="def-image-list-container">
-              <ul id="defImageListMiddle" class="def-image-ul">
-              </ul>
-            </div>
-          </div>
-          <!-- end list -->
-        </div>
-        <!-- end nav-three-cam -->
         <!-- start nav-two-cam -->
         <div id="rightImageMenu" class="nav-two-cam">
           <!-- start list -->
@@ -263,8 +227,11 @@
         </div>
         <!-- end nav-two-cam-->
         <div class="nav-item">
-          <h1 style="margin-top: 30px;">CALIBRATION</h1>
-          <div class="nav-one-cam"><input id="calibrationCheck" type="checkbox" style="margin-left:10px;"> calibrate results</div>
+          <h1 style="margin-top: 20px;">CALIBRATION</h1>
+          <div class="nav-one-cam">
+            <input id="calibrationCheck" type="checkbox" style="margin-left: 10px;">
+            calibrate results
+          </div>
           <div class="cal-options">
             <label id="performCal" class="custom-file-input action-li"> <i
               class="material-icons md-dark md-br-pad"
@@ -284,7 +251,7 @@
           </div>
         </div>
         <!-- end nav-two-cam-->
-        <h1 style="margin-top: 40px;">ANALYSIS</h1>
+        <h1 style="margin-top: 20px;">ANALYSIS</h1>
         <div id="runLoader" class="pre-loader"></div>
         <ul>
           <li id="changeWorkingDirLi" class="action-li"><i
@@ -299,14 +266,22 @@
           <li id="abortLi" class="action-li"><i class="material-icons md-dark md-br-pad">cancel</i>
             <span>abort analysis</span></li>
         </ul>
-        <svg class="spinner" width="65px" height="65px" viewBox="0 0 66 66"
+        
+        <div id="taskListDiv">
+        <h1 style="margin: 20px 0px 5px;" title="Steps that need to be completed before the analysis can be run">TASK LIST</h1>
+          <ul id="taskList">
+          </ul>
+        </div>
+        
+        
+        
+        <!-- <svg class="spinner" width="65px" height="65px" viewBox="0 0 66 66"
           xmlns="http://www.w3.org/2000/svg"
         >
             <circle class="path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33"
             r="30"
           ></circle>
-          </svg>
-        <div class="test-animation"></div>
+          </svg>  -->
       </div>
       <!-- end fixed-col -->
       <div class="fluid-col">
@@ -320,122 +295,25 @@
               </div>
             </div>
             <div id="subFillDivLeft" class="sub-fill-div">
-              <div class="toggle-div">
+              <div class="toggle-div" style="margin-bottom:0px;">
                 <div class="toggle-div-banner">
-                  <span class="toggle-title">VIEW CONTROL</span>
-                  <i id="sssigPreview" class="material-icons md-dark action-li full-field" style="margin-left:20px;"
-                    title="preview sssig mask"
-                  >check_circle</i> <i class="material-icons md-dark action-li zoom-in-left"
-                    title="zoom in"
-                  >zoom_in</i> <i class="material-icons md-dark action-li zoom-out-left"
-                    title="zoom out"
-                  >zoom_out</i> <input type="range" class="zoom-range-left"> <i
-                    class="material-icons md-dark action-li reset-left" title="actual size"
-                  >aspect_ratio</i> <i class="material-icons md-dark action-li" id="zoomToFitLeft"
-                    title="zoom to fit"
-                  >zoom_out_map</i> <label id="leftDims"></label> <label id="leftPos"></label>
-                  <!--<span class="toggle-icon action-li"><iclass="material-icons md-dark toggler">swap_vertical_circle</i></span>-->
+                  <span class="toggle-title">IMAGE PREVIEW</span>
+                  <span id="leftDims"></span> <span id="leftPos" style="padding-left:20px;"></span>
                   <span class="toggle-icon action-li" id="leftPaneToggle" title="hide this view"><i class="material-icons md-dark pane-closer" style="transform: rotate(270deg)">swap_vertical_circle</i></span>
+                 <label id="loadSubsetFileInputIcon" for="loadSubsetFileInput" title="import subset locations" class="custom-file-input action-li full-field-and-tracking"
+                    style="display: none;"></label>
+                 <input id="loadSubsetFileInput" type="file" accept=".txt">
                 </div>
                 <!-- end toggle div banner -->
                 <!-- <div class="toggle-div-body"> </div>  -->
                 <!-- end toggle div body -->
               </div>
               <!-- end toggle div -->
-              <div class="toggle-div non-tracklib-tools">
-                <div class="toggle-div-banner">
-                  <span class="toggle-title">REGIONS OF INTEREST</span>
-                  <i id="addROIs" class="material-icons md-dark action-li" style="margin-left:20px;" title="add ROI">add_circle</i>
-                  <i id="removeLastROI" class="material-icons md-dark action-li"
-                    title="remove last ROI"
-                  >remove_circle</i> <i id="addExcludeds" class="material-icons md-dark action-li"
-                    title="add exclusion"
-                  >add_circle_outline</i> <i id="removeLastExcluded"
-                    class="material-icons md-dark action-li" title="remove last exclusion"
-                  >remove_circle_outline</i> <i id="addObstructed"
-                    class="material-icons md-dark action-li tracking" title="add obstruction"
-                  >add_box</i> <i id="removeLastObstructed"
-                    class="material-icons md-dark action-li tracking"
-                    title="remove last obstruction"
-                  >indeterminate_check_box</i> <i id="resetROIs"
-                    class="material-icons md-dark action-li" title="reset ROIs"
-                  >block</i> <i id="addLivePlotPts"
-                    class="material-icons md-dark action-li full-field-global"
-                    title="add live plot pt" style="margin-left: 25px;"
-                  >gps_fixed</i> <i id="addLivePlotLine"
-                    class="material-icons md-dark action-li full-field-global"
-                    title="add live plot line"
-                  >location_disabled</i> <i id="resetLivePlotPts"
-                    class="material-icons md-dark action-li full-field-global"
-                    title="reset live plot pts"
-                  >block</i> <label id="loadSubsetFileInputIcon" for="loadSubsetFileInput" title="import subset locations" class="custom-file-input action-li full-field-and-tracking"
-                    style="display: inline-block; padding:0px; margin-left:25px;"
-                  ><i class="material-icons md-dark">select_all</i></label> <input
-                    id="loadSubsetFileInput" type="file" accept=".txt"
-                  >
-                   <label id="ROIProgress"></label>
-                  
-                  <!-- <span class="toggle-icon action-li"><i class="material-icons md-dark toggler">swap_vertical_circle</i></span> -->
-                </div>
-                <!-- end toggle div banner -->
-                <!-- <div class="toggle-div-body"> </div> -->
-                <!-- end toggle div body -->
-              </div>
-              <!-- end toggle div -->
               <div id="viewWindowLeft" class="fill-div" style="background-color: darkgray;">
-                <div id="panzoomLeft" class="panzoom">
-                  <!--<svg id="svgLeft" width="300" height="300"> -->
-                  <!--  <circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" />-->
-                  <!--</svg>-->
-                  <div id="svgContainer" class="svg-container"></div>
-                </div>
+                <div id="plotlyViewerLeft" class="plotly-viewer"><!-- placeholder for plotly plots --></div>
               </div>
             </div>
             <!-- end fill div left -->
-
-            <div id="middleMinimized" class="minimized-bar">
-              <div class="minimized-bar-banner">
-                <span class="toggle-icon action-li" title="show this view"><i
-                  class="material-icons md-dark pane-opener" style="transform: rotate(90deg)"
-                >swap_vertical_circle</i></span>
-              </div>
-            </div>
-            <div id="subFillDivMiddle" class="sub-fill-div">
-              <div class="toggle-div">
-                <div class="toggle-div-banner">
-                  <span class="toggle-title">VIEW CONTROL</span>
-                  <i class="material-icons md-dark action-li zoom-in-middle" style="margin-left:20px;" title="zoom in">zoom_in</i>
-                  <i class="material-icons md-dark action-li zoom-out-middle" title="zoom out">zoom_out</i>
-                  <input type="range" class="zoom-range-middle"> <i
-                    class="material-icons md-dark action-li reset-middle" title="actual size"
-                  >aspect_ratio</i> <i class="material-icons md-dark action-li" id="zoomToFitMiddle"
-                    title="zoom to fit"
-                  >zoom_out_map</i> <label id="middleDims"></label> <label id="middlePos"></label>
-                  <!-- <span class="toggle-icon action-li"><i class="material-icons md-dark toggler">swap_vertical_circle</i></span> -->
-                  <span class="toggle-icon action-li" title="hide this view"><i
-                    class="material-icons md-dark pane-closer" style="transform: rotate(270deg)"
-                  >swap_vertical_circle</i></span>
-                </div>
-                <!-- end toggle div banner -->
-                <!-- <div class="toggle-div-body"></div> -->
-                <!-- end toggle div body -->
-              </div>
-              <!-- end toggle div -->
-              <div class="toggle-div">
-                <div class="toggle-div-banner">
-                  <span class="toggle-title">TRINOCULAR UTILS</span>
-                  <!--  <span class="toggle-icon action-li"><i class="material-icons md-dark toggler">swap_vertical_circle</i></span> -->
-                </div>
-                <!-- end toggle div banner -->
-                <!-- <div class="toggle-div-body" style="min-height: 30px;"></div> -->
-                <!-- end toggle div body -->
-              </div>
-              <!-- end toggle div -->
-              <div id="viewWindowMiddle" class="fill-div" style="background-color: darkgray;">
-                <div id="panzoomMiddle" class="panzoom"></div>
-              </div>
-            </div>
-            <!-- end fill div middle -->
             <div id="rightMinimized" class="minimized-bar">
               <div class="minimized-bar-banner">
                 <span class="toggle-icon action-li" title="show this view"><i
@@ -444,21 +322,10 @@
               </div>
             </div>
             <div id="subFillDivRight" class="sub-fill-div">
-              <div class="toggle-div">
+              <div class="toggle-div" style="margin-bottom:0px;">
                 <div class="toggle-div-banner">
-                  <span class="toggle-title">VIEW CONTROL</span>
-                  <i class="material-icons md-dark action-li zoom-in-right" style="margin-left:20px;" title="zoom in">zoom_in</i>
-                  <i class="material-icons md-dark action-li zoom-out-right" title="zoom out">zoom_out</i>
-                  <input type="range" class="zoom-range-right"> <i
-                    class="material-icons md-dark action-li reset-right" title="actual size"
-                  >aspect_ratio</i> <i class="material-icons md-dark action-li" id="zoomToFitRight"
-                    title="zoom to fit"
-                  >zoom_out_map</i> 
-                  <i id="drawEpipolar"
-                    class="material-icons md-dark action-li" title="draw epipolar line"
-                  >launch</i>
-                  <label id="rightDims"></label> <label id="rightPos"></label>
-                  <!-- <span class="toggle-icon action-li"><i class="material-icons md-dark toggler">swap_vertical_circle</i></span> -->
+                  <span class="toggle-title">STEREO IMAGE PREVIEW</span>
+                  <span id="rightDims"></span> <span id="rightPos"  style="padding-left:20px;"></span>
                   <span class="toggle-icon action-li" title="hide this view"><i
                     class="material-icons md-dark pane-closer" style="transform: rotate(270deg)"
                   >swap_vertical_circle</i></span>
@@ -468,26 +335,8 @@
                 <!-- end toggle div body -->
               </div>
               <!-- end toggle div -->
-              <div class="toggle-div non-tracklib-tools">
-                <div class="toggle-div-banner">
-                  <span class="toggle-title">CROSS CORRELATION UTILS</span>
-                  <i id="previewCross" class="material-icons md-dark action-li" style="margin-left:20px;"
-                    title="preview cross initialization"
-                  >collections</i> <i id="initCross" class="material-icons md-dark action-li"
-                    title="seed nonlinear warp"
-                  >photo_size_select_large</i> <i id="clearCross"
-                    class="material-icons md-dark action-li" title="clear nonlinear warp"
-                  >block</i>
-                  <!-- <span class="toggle-icon action-li"><i class="material-icons md-dark toggler">swap_vertical_circle</i></span> -->
-                </div>
-                <!-- end toggle div banner -->
-                <!-- <div class="toggle-div-body" style="min-height: 30px;">
-                </div> -->
-                <!-- end toggle div body -->
-              </div>
-              <!-- end toggle div -->
               <div id="viewWindowRight" class="fill-div" style="background-color: darkgray;">
-                <div id="panzoomRight" class="panzoom"></div>
+                <div id="plotlyViewerRight" class="plotly-viewer"><!-- placeholder for plotly plots --></div>
               </div>
             </div>
             <!-- end fill div right -->
@@ -498,8 +347,9 @@
           <div class="toggle-div console-toggle-div">
             <div class="toggle-div-banner">
               <span class="toggle-title-bold" id="consoleButton">CONSOLE</span>
-              <span class="toggle-title" style="padding-left:10px; padding-right:10px;">|</span>
-              <span class="toggle-title action-li" id="resultsButton">RESULTS</span>
+              <span class="toggle-title" style="padding-left:10px; padding-right:5px;">|</span>
+              <span class="toggle-title action-li" id="plotsButton">PLOTS</span>
+              <!--<span class="toggle-title full-field-global" style="padding-left:10px; padding-right:10px;">|</span>-->
               <span class="toggle-icon action-li">
                 <i id="clearConsoleIcon" class="material-icons md-dark action-li" title="clear console">block</i>
                 <i id="consoleToggle" class="material-icons md-dark toggler">swap_vertical_circle</i>
@@ -507,18 +357,17 @@
             </div>
             <!-- end toggle div banner -->
             <div class="toggle-div-body" style="height:auto;">
-              <div id="resultsWindow" class="results-window" style="display:none;">
+              <div id="plotsWindow" class="results-window" style="display:none;">
                 <div id="resultsWindowLeft" class="results-sub-window results-left">
-                  <div id="livePlots" style="width:100%; height: 93%; float: left; overflow: hidden; padding-bottom:10px;"></div>
-                  <select class="update-tracklib-plots" id="livePlotFieldSelect" style="padding-left:10px; width:30%;"></select>
-                  <span class="tracklib-tools" style="padding-left:10px; padding-right:5px;">ID:</span>
-                  <input type="text" class="tracklib-tools update-tracklib-plots" id="trackID" name="trackID" value="0" style="width: 10%;">
-                  <select id="idTypeSelect" class="tracklib-tools update-tracklib-plots">
+                  <div id="livePlots" class="track-plot" style="width:100%; height: 93%; float: left; overflow: hidden; padding-bottom:10px;"></div>
+                  <select id="livePlotFieldSelect" class="track-plot" style="padding-left:10px; width:30%;"></select>
+                  <span class="tracklib-tools track-plot" style="padding-left:10px; padding-right:5px;">ID:</span>
+                  <input type="text" class="tracklib-tools update-tracklib-plots track-plot" id="trackGID" name="trackGID" value="0" style="width: 10%;">
+                    <!--<select id="idTypeSelect" class="tracklib-tools update-tracklib-plots">
                     <option value="leftID">left ID</option>
                     <option value="rightID">right ID</option>
                     <option value="globalID">global stereo ID</option>
-                  </select>
-
+                    </select>-->
                 </div>
                 <div id="resultsWindowRight" class="results-sub-window results-right">
                   <div class="non-tracklib-tools" id="livePlotLine" style="width:100%; height: 93%; float: left; overflow: hidden; padding-bottom:10px;"></div>
@@ -527,7 +376,7 @@
                   <select class="non-tracklib-tools" id="stepSelect"></select> <!-- <input id="fixAxisCheck" type="checkbox" style="margin-left: 10px;"><span> fix y-axis</span> -->
                   <span   class="non-tracklib-tools" id="stepBackward" class="action-li" style="padding-left:5px;">previous</span>
                   <span   class="non-tracklib-tools" id="stepForward" class="action-li" style="padding-left:5px;">next</span>
-                  <div    class="tracklib-tools" id="livePlot3D" style="width:100%; height: 100%; float: left; overflow: hidden; padding-bottom:10px;"></div>
+                  <div    class="tracklib-tools track-plot" id="livePlot3d" style="width:100%; height: 100%; float: left; overflow: hidden; padding-bottom:10px;"></div>
                 </div>
               </div>
               <div id="consoleWindow" class="console">
@@ -549,69 +398,210 @@
             </div>
             <!-- end toggle div banner -->
             <div class="toggle-div-body">
-              <p>analysis mode:</p>
-              <select id="analysisModeSelect">
+              <p><b>analysis mode</b></p>
+              <select id="analysisModeSelect" style="width:50%;">
                 <option value="subset">subset-based full-field</option>
                 <option value="tracking">tracking</option>
                 <option value="global">global</option>
               </select>
+              <p class="non-tracklib-tools" style="padding-top:10px;"><b>settings</b></p>
+              <hr class="non-tracklib-tools" style="width:100%;text-align:left;margin-left:0;">
               <div id="tracklibParams" class="param-options tracklib-tools">
-                <p>
-                  <p><input id="segPreviewCheck" type="checkbox" class="update-tracklib-preview"> preview segmentation</p>
-                  <p><input id="showTracksCheck" type="checkbox" class="update-tracklib-preview"> show tracks</p>
-                  <p><input id="showOnlyActiveCheck" type="checkbox" class="update-tracklib-preview"> show only active</p>
-                  <!--<p><input id="threshPreviewCheck" type="checkbox" class="update-tracklib-preview" disabled> show threshold</p>-->
-                  <p>num background frames</p>
-                  <input type="text" class="update-tracklib-preview" id="numBackgroundFrames" name="numBackgroundFrames" value="25" style="width: 50%;">
-                  <p>thresh left</p>
-                  <input type="text" class="update-tracklib-preview" id="threshLeft" name="threshLeft" value="10" style="width: 50%;">
-                  <p>thresh right</p>
-                  <input type="text" class="update-tracklib-preview" id="threshRight" name="threshRight" value="10" style="width: 50%;">
-                  <p>max pt density (pt/px^2)</p>
-                  <input type="text" class="update-tracklib-preview" id="maxPtDensity" name="maxPtDensity" value="0.0063662" style="width: 50%;">
-                  <p>min area (px)</p>
-                  <input type="text" class="update-tracklib-preview" id="minArea" name="minArea" value="1" style="width: 50%;">
-                  <p>max area (px)</p>
-                  <input type="text" class="update-tracklib-preview" id="maxArea" name="maxArea" value="500" style="width: 50%;">
-                  <p>colocation tol</p>
-                  <input type="text" class="update-tracklib-preview" id="colocationTol" name="colocationTol" value="0.2" style="width: 50%;">
-                  <p>match tol</p>
-                  <input type="text" class="update-tracklib-preview" id="matchTol" name="matchTol" value="0.1" style="width: 50%;">
-                  <p>cross match tol</p>
-                  <input type="text" class="update-tracklib-preview" id="crossMatchTol" name="crossMatchTol" value="2.0" style="width: 50%;">
-                  <p>neighbor radius (px)</p>
-                  <input type="text" class="update-tracklib-preview" id="neighborRadius" name="neighborRadius" value="7.0" style="width: 50%;">
-                  <p>min pts per track</p>
-                  <input type="text" class="update-tracklib-preview" id="minPtsPerTrack" name="minPtsPerTrack" value="3" style="width: 50%;">
-                  <p>max track gap (frames)</p>
-                  <input type="text" class="update-tracklib-preview" id="maxTrackGap" name="maxTrackGap" value="1" style="width: 50%;">
-                  <!-- 
-                  <p><input id="trajectoryPreviewCheck" type="checkbox" class="update-tracklib-preview" disabled> show trajectory</p>
-                  <p><input id="invertColorsCheck" type="checkbox" class="update-tracklib-preview"> invert colors</p>
-                  <p>threshold method</p>
-                  <select id="threshModeSelect" class="update-tracklib-preview">
-                    <option value="gaussian">gaussian</option>
-                    <option value="mean">mean</option>
-                  </select>
-                  <div style="margin-top:10px;"><p>threshold block size</p>
-                  <input type="text" class="update-tracklib-preview" id="threshBlockSize" name="threshBlockSize" value="501" style="display:inline-block; width: 50%; margin-bottom:10px;"></div>
-                  <p>threshold constant</p>
-                  <input type="text" class="update-tracklib-preview" id="threshAdaptiveConstant" name="threshAdaptiveConstant" value="50.0" style="width: 50%; margin-bottom:10px;">
-                  <p>num background frames</p>
-                  <input type="text" class="update-tracklib-preview" id="numBackgroundFrames" name="numBackgroundFrames" value="25" style="width: 50%;">
-                  <p>bin size theta (hough)</p>
-                  <input type="text" class="update-tracklib-preview" id="bucketSizeTheta" name="bucketSizeTheta" value="0.05" style="width: 50%;">
-                  <p>bin size r (hough)</p>
-                  <input type="text" class="update-tracklib-preview" id="bucketSizeR" name="bucketSizeR" value="10.0" style="width: 50%;">
-                  <p>neighbor rad sq (hough)</p>
-                  <input type="text" class="update-tracklib-preview" id="neighRadSq" name="neighRadSq" value="40000.0" style="width: 50%;">
-                  <p>cross epi tol</p>
-                  <input type="text" class="update-tracklib-preview" id="crossEpiTol" name="crossEpiTol" value="5.0" style="width: 50%;"> -->
-                </p>
+                <div class="toggle-div console-toggle-div">
+                  <div class="toggle-div-banner">
+                    <span class="toggle-title-bold" id="previewButton">PREVIEW</span> <span
+                      class="toggle-title" style="padding-left: 10px; padding-right: 5px;"
+                    >|</span> <span class="toggle-title action-li" id="resultsButton">RESULTS</span>
+                  </div>
+                  <!-- end toggle div banner -->
+                <div class="toggle-div-body" style="height: auto;  border-style:ridge;">
+                  <div id="resultsWindow" style="display:none;">
+                      <p>track display mode (not implemented yet...)</p>
+                      <select id="trackDisplayModeSelect" style="margin-top: 20px;">
+                        <option value="all-tracks">all tracks</option>
+                        <option value="in-frame-only">in frame only</option>
+                        <option value="by-id">by id</option>
+                      </select>
+                    </div>
+                    <div id="previewWindow">
+                      <div id="previewTracklib" class="action-li" style="margin-top: 10px;">
+                        <i class="material-icons md-dark md-br-pad" style="margin-bottom: 0px;">check_circle</i>
+                        update preview
+                      </div>
+                      <div style="overflow: hidden;">
+                        <div style="width: 50%; float: left;">num frames in preview</div>
+                        <input class="update-tracklib-preview" type="text" id="numPreviewFrames"
+                          name="numPreviewFrames" value="1" style="width: 27%; float: left;"
+                        >
+                      </div>
+                      <div style="overflow: hidden;">
+                      <p style="padding-top: 15px; float:left;"><b>segmentation</b></p>
+                      <p style="padding-top: 15px; float:right;"><input id="showSegmentationCheck" type="checkbox" checked> show</p>
+                      </div>
+                      <hr style="width:100%;text-align:left;margin-left:0;">
+                      <div style="overflow: hidden;">
+                        <div style="width: 50%; float: left; padding-top:10px;">
+                          <p>thresh left (counts)</p>
+                          <input type="text" class="update-tracklib-preview" id="threshLeft"
+                            name="threshLeft" value="10" style="width: 54%;"
+                          >
+                        </div>
+                        <div style="width: 50%; float: right; padding-top: 10px;">
+                          <p>thresh right (counts)</p>
+                          <input type="text" class="update-tracklib-preview" id="threshRight"
+                            name="threshRight" value="10" style="width: 54%;"
+                          >
+                        </div>
+                      </div>
+                      <div style="overflow: hidden;">
+                        <div style="width: 50%; float: left;">
+                          <p>min area (px)</p>
+                          <input type="text" class="update-tracklib-preview" id="minArea"
+                            name="minArea" value="1" style="width: 54%;"
+                          >
+                        </div>
+                        <div style="width: 50%; float: right;">
+                          <p>max area (px)</p>
+                          <input type="text" class="update-tracklib-preview" id="maxArea"
+                            name="maxArea" value="500" style="width: 54%;"
+                          >
+                        </div>
+                      </div>
+                      <div style="overflow: hidden; padding-top: 8px;">
+                        <p style="width: 50%; float: left;">background frames</p>
+                        <input type="text" class="update-tracklib-preview" id="numBackgroundFrames"
+                          name="numBackgroundFrames" value="25" style="width: 27%; float: left;"
+                        >
+                      </div>
+                      <div style="overflow: hidden">
+                        <p style="width: 50%; float: left;">
+                          max density (pt/px<sup>2</sup>)
+                        </p>
+                        <input type="text" class="update-tracklib-preview" id="maxPtDensity"
+                          name="maxPtDensity" value="0.0063662" style="width: 27%; float: left;"
+                        >
+                      </div>
+                      <div style="overflow: hidden">
+                        <p style="width: 50%; float: left;">min Δx/frame (px)</p>
+                        <input type="text" class="update-tracklib-preview" id="colocationTol"
+                          name="colocationTol" value="0.2" style="width: 27%; float: left;"
+                        >
+                      </div>
+                      <div style="overflow: hidden;">
+                      <p style="padding-top: 15px; float:left;"><b>tracking</b></p>
+                      <p style="padding-top: 15px; float:right;"><input id="showTrackingCheck" type="checkbox" checked> show</p>
+                      </div>
+                      <hr style="width:100%;text-align:left;margin-left:0">
+                      <p style="padding-top: 15px;">
+                        <b>2d</b>
+                      </p>
+                      <div style="overflow: hidden">
+                        <p style="width: 50%; float: left;">num search frames</p>
+                        <input type="text" class="update-tracklib-preview" id="numSearchFrames"
+                          name="numSearchFrames" value="1" style="width: 27%; float: left;"
+                        >
+                      </div>
+                      <div style="overflow: hidden;">
+                        <p style="width: 50%; float: left;"></p>
+                        <span style="width: 45%; float: left;"><span style="width: 60%;">tolerance</span><span
+                          style="width: 30%; float: right;"
+                        >weight</span></span>
+                      </div>
+                      <div style="overflow: hidden;">
+                        <p style="width: 50%; float: left;">Δarea/area (%)</p>
+                        <span style="width: 45%; float: left;"><input type="text"
+                          class="update-tracklib-preview" id="areaTol" name="areaTol" value="25.0"
+                          style="width: 60%;"
+                        > w<sub>a</sub><input type="text" class="weight-2d" id="areaWeight"
+                          name="areaWeight" value="1.0" style="width: 25%; float: right;"
+                        ></span>
+                      </div>
+                      <div style="overflow: hidden">
+                        <p style="width: 50%; float: left;">Δgray (counts)</p>
+                        <span style="width: 45%; float: left;"><input type="text"
+                          class="update-tracklib-preview" id="grayTol" name="grayTol" value="20"
+                          style="width: 60%;"
+                        > w<sub>g</sub><input type="text" class="weight-2d" id="grayWeight"
+                          name="grayWeight" value="1.0" style="width: 25%; float: right;"
+                        ></span>
+                      </div>
+                      <div style="overflow: hidden">
+                        <p style="width: 50%; float: left;">search radius (px)</p>
+                        <span style="width: 45%; float: left;"><input type="text"
+                          class="update-tracklib-preview" id="neighborRadius" name="neighborRadius"
+                          value="50.0" style="width: 60%;"
+                        > w<sub>d</sub><input type="text" class="weight-2d" id="distWeight"
+                          name="distWeight" value="1.0" style="width: 25%; float: right;"
+                        > </span>
+                      </div>
+                      <div style="overflow: hidden">
+                        <p style="width: 50%; float: left;">Δangle (rad)</p>
+                        <span style="width: 45%; float: left;"><input type="text"
+                          class="update-tracklib-preview" id="angleTol" name="angleTol" value="0.78"
+                          style="width: 60%;"
+                        > w<sub>α</sub><input type="text" class="weight-2d" id="angleWeight"
+                          name="angleWeight" value="1.0" style="width: 25%; float: right;"
+                        > </span>
+                      </div>
+                      <p>
+                        disparity = w<sub>a</sub>(Δarea/area) + w<sub>g</sub>(Δgray/255) + w<sub>d</sub>(Δu/u)
+                        + 2w<sub>α</sub>(Δangle/π)
+                      </p>
+                      <!-- <div style="overflow:hidden;"> 
+                    <p style="width:50%; float:left;">sum (100% max)</p>
+                    <span style="width:45%; float:left"><span style="width: 60%;"></span><span id="weightSum" style="width: 30%;float:right;">100.0</span></span>
+                  </div>-->
+
+                      <p style="padding-top: 15px;">
+                        <b>stereo</b>
+                      </p>
+                      <div style="overflow: hidden;">
+                        <p style="width: 50%; float: left;">min pts per track</p>
+                        <input type="text" class="update-tracklib-preview" id="minPtsPerTrack"
+                          name="minPtsPerTrack" value="3" style="width: 27%; float: left;"
+                        >
+                      </div>
+                      <div style="overflow: hidden;">
+                        <p style="width: 50%; float: left;"></p>
+                        <span style="width: 45%; float: left;"><span style="width: 60%;">tolerance</span><span
+                          style="width: 30%; float: right;"
+                        >weight</span></span>
+                      </div>
+                      <div style="overflow: hidden;">
+                        <p style="width: 50%; float: left;">
+                          Δarea<sub>s</sub>/area (%)
+                        </p>
+                        <span style="width: 45%; float: left;"><input type="text"
+                          class="update-tracklib-preview" id="stereoAreaTol" name="stereoAreaTol"
+                          value="25.0" style="width: 60%;"
+                        > w<sub>s</sub><input type="text" class="weight-stereo"
+                          id="stereoAreaWeight" name="stereoAreaWeight" value="1.0"
+                          style="width: 25%; float: right;"
+                        > </span>
+                      </div>
+                      <div style="overflow: hidden;">
+                        <p style="width: 50%; float: left;">dist from epi line, e (px)</p>
+                        <span style="width: 45%; float: left"><input type="text"
+                          class="update-tracklib-preview" id="distFromEpiTol" name="distFromEpiTol"
+                          value="10.0" style="width: 60%;"
+                        > w<sub>e</sub><input type="text" class="weight-stereo"
+                          id="distFromEpiWeight" name="distFromEpiWeight" value="2.0"
+                          style="width: 25%; float: right;"
+                        > </span>
+                      </div>
+                      <p>
+                        disparity = w<sub>s</sub>(Δarea<sub>s</sub>/area) + w<sub>e</sub>e
+                      </p>
+                    </div>
+                    <!-- <div style="overflow:hidden;">
+                    <p style="width:50%; float:left;">sum</p>
+                    <span style="width:45%; float:left"><span style="width: 60%;"></span><span id="stereoWeightSum" style="width: 30%;float:right;">100.0</span></span>
+                  </div> -->
+                </div></div>
               </div>
               <div id="subsetParams" class="param-options full-field">
                 <p>initialization method:</p>
-                <select id="initSelect">
+                <select id="initSelect"  style="width:50%">
                   <option value="featureMatching">feature matching</option>
                   <option value="featureMatchingWThresh">feature matching w/thresh</option>
                   <option value="fieldValues">field values</option>
@@ -634,6 +624,8 @@
                 <input id="subsetSize" type="range" min="9" max="51" defaultValue="31" value="31"
                   step="2"
                 >
+                <p><input id="showRepSubsetCheck" type="checkbox" class="ref-image-required" disabled> show rep. subset
+                </p>
                 <p>
                   step size: <label id="stepSizeLabel">15</label> (pixels)
                 </p>
@@ -668,7 +660,7 @@
                 </p>
                 <div id="stereoParams" class="param-options">
                   <p>
-                    <input id="bestFitCheck" type="checkbox"> use best fit plane
+                    <input id="bestFitCheck" type="checkbox" class="ref-image-required" disabled> use best fit plane
                   </p>
                   <p>
                     <input id="bestFitYAxisCheck" type="checkbox"> treat axis as y-axis
@@ -685,7 +677,7 @@
               </div>
               <div id="globalParams" class="param-options global">
                 <p>
-                  mesh size: <label id="meshSizeLabel">50</label> (pixels^2)
+                  mesh size: <label id="meshSizeLabel">50</label> (pixels<sup>2</sup>)
                 </p>
                 <input id="meshSize" type="range" min="3" max="500" defaultValue="50" value="50"
                   step="1"
@@ -713,6 +705,25 @@
                 <input id="filterSize" style="margin-bottom: 10px;" type="range" min="5" max="13"
                   defaultValue="5" value="5" step="2"
                 >
+                <p><b>results</b></p>
+                <hr style="width:100%;text-align:left;margin-left:0; margin-bottom:10px;">
+                <p class="full-field"><input id="showContourCheck" type="checkbox" style="margin-bottom:10px;" disabled> show results contour plot</p>
+                <p class="full-field">contour field:</p>
+                <select id="contourFieldSelect" class="full-field contour-setting" style="padding-left:10px; width:50%;" disabled></select>
+                <p class="full-field">opacity:</p>
+                <select id="contourOpacitySelect" class="full-field contour-setting" style="padding-left:10px; margin-bottom:10px; width:50%;" disabled>
+                   <option value="0.0">0.0</option>
+                   <option value="0.1">0.1</option>
+                   <option value="0.2">0.2</option>
+                   <option value="0.3">0.3</option>
+                   <option selected="selected" value="0.4">0.4</option>
+                   <option value="0.5">0.5</option>
+                   <option value="0.6">0.6</option>
+                   <option value="0.7">0.7</option>
+                   <option value="0.8">0.8</option>
+                   <option value="0.9">0.9</option>
+                   <option value="1.0">1.0</option>
+                </select>
               </div>
               <div id="generalParams" class="param-options tracking non-tracklib-tools">
                 <p>
@@ -724,121 +735,6 @@
                   export movie
                 </p>
               </div>
-              <!--<div class="tracking">
-                <p>
-                  <input id="binaryCheck" class="filterOption" type="checkbox"> binary
-                  threshold
-                </p>
-                <p class="suboption">thresholding method:</p>
-                <p class="suboption filterOption">
-                  <select id="binarySelect">
-                    <option value="binaryMean">local mean value</option>
-                    <option value="binaryGaussian">local gaussian weighted sum</option>
-                  </select>
-                </p>
-                <p class="suboption filterOption">
-                  <input id="binaryInvertedCheck" type="checkbox"> inverted
-                </p>
-                <p class="suboption">
-                  block size: <label id="binaryThreshBlockSizeLabel">75</label> (pixels)
-                </p>
-                <input class="suboption filterOption" id="binaryThreshBlockSize" type="range"
-                  min="3" max="101.0" defaultValue="75" value="75" step="2"
-                >
-                <p class="suboption">
-                  thresholding constant: <label id="binaryThreshConstantLabel">10</label> (counts)
-                </p>
-                <input class="suboption filterOption" id="binaryThreshConstant" type="range"
-                  min="-50" max="50.0" defaultValue="10" value="10" step="1"
-                >
-                <div style="display: none;">
-                  <p>
-                    <input id="blobCheck" class="filterOption" type="checkbox"
-                      style="margin-top: 20px;"
-                    > blob detection
-                  </p>
-                  <div class="suboption-wrapper">
-                    <div class="suboption-col">
-                      <p class="suboption">
-                        <input id="blobAreaCheck" class="filterOption" type="checkbox">
-                        filter on area (pixels)
-                      </p>
-                      <p class="subsuboption">
-                        min: <label id="blobAreaMinLabel">0</label>
-                      </p>
-                      <input class="subsuboption filterOption blobOption" id="blobAreaMin"
-                        type="range" min="1" max="200" defaultValue="0" value="0" step="1"
-                      >
-                      <p class="subsuboption">
-                        max: <label id="blobAreaMaxLabel">100</label>
-                      </p>
-                      <input class="subsuboption filterOption blobOption" id="blobAreaMax"
-                        type="range" min="1" max="200" defaultValue="100" value="100" step="1"
-                      >
-                      <p class="suboption">
-                        <input id="blobCircularityCheck" class="filterOption" type="checkbox">
-                        filter on circularity
-                      </p>
-                      <p class="subsuboption">
-                        min: <label id="blobCircularityMinLabel">0</label>
-                      </p>
-                      <input class="subsuboption filterOption blobOption" id="blobCircularityMin"
-                        type="range" min="0" max="1" defaultValue="0" value="0" step="0.01"
-                      >
-                      <p class="subsuboption">
-                        max: <label id="blobCircularityMaxLabel">1</label>
-                      </p>
-                      <input class="subsuboption filterOption blobOption" id="blobCircularityMax"
-                        type="range" min="0" max="1" defaultValue="1" value="1" step="0.01"
-                      >
-                    </div>
-                    <div class="suboption-col">
-                      <p class="suboption">
-                        <input id="blobEccentricityCheck" class="filterOption" type="checkbox">
-                        filter on eccentricity
-                      </p>
-                      <p class="subsuboption">
-                        min: <label id="blobEccentricityMinLabel">0</label>
-                      </p>
-                      <input class="subsuboption filterOption blobOption" id="blobEccentricityMin"
-                        type="range" min="0" max="1" defaultValue="0" value="0" step="0.01"
-                      >
-                      <p class="subsuboption">
-                        max: <label id="blobEccentricityMaxLabel">1</label>
-                      </p>
-                      <input class="subsuboption filterOption blobOption" id="blobEccentricityMax"
-                        type="range" min="0" max="1" defaultValue="1" value="1" step="0.01"
-                      >
-                      <p class="suboption">
-                        <input id="blobConvexityCheck" class="filterOption" type="checkbox">
-                        filter on convexity
-                      </p>
-                      <p class="subsuboption">
-                        min: <label id="blobConvexityMinLabel">0</label>
-                      </p>
-                      <input class="subsuboption filterOption blobOption" id="blobConvexityMin"
-                        type="range" min="0" max="1" defaultValue="0" value="0" step="0.01"
-                      >
-                      <p class="subsuboption">
-                        max: <label id="blobConvexityMaxLabel">1</label>
-                      </p>
-                      <input class="subsuboption filterOption blobOption" id="blobConvexityMax"
-                        type="range" min="0" max="1" defaultValue="1" value="1" step="0.01"
-                      >
-                    </div>
-                  </div>
-                </div>
-                <hr style="margin-top: 20px;">
-                <ul>
-                  <li id="previewFilterLi" class="action-li-horiz"><i
-                    class="material-icons md-dark md-br-pad"
-                  >autorenew</i> <span>preview</span></li>
-                  <li id="previewFilterResetLi" class="action-li-horiz"><i
-                    class="material-icons md-dark md-br-pad"
-                  >keyboard_backspace</i> <span>reset</span></li>
-                  <li><input id="binaryAutoUpdateCheck" type="checkbox"> auto preview</li>
-                </ul>
-              </div>-->
             </div>
             <!-- end toggle div body -->
           </div>
@@ -882,7 +778,7 @@
                 <h3>Global mode</h3>
                 <p>To use the global DIC formulation (currently, only in 2D) set the analysis
                   mode to 'global'. In this mode, the user has two parameters to set, the mesh size
-                  (the average area of a mesh element in pixels^2) and the regularization constant.
+                  (the average area of a mesh element in pixels<sup>2</sup>) and the regularization constant.
                   The regularization constant will introduce smoothing to the results for high
                   values.</p>
                 <h3>Tracking mode</h3>

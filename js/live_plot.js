@@ -4,6 +4,7 @@ var dataObjs = [];
 var currentTable = 0;
 
 function livePlotRepeat() {
+    console.log('livePlotRepeat():');
     var workingDir = localStorage.getItem("workingDirectory");
     var fileNameStr = localStorage.getItem("livePlotFiles"); 
     var fileNames = fileNameStr.split(/[ ,]+/);
@@ -23,20 +24,21 @@ function livePlotRepeat() {
 //    console.log('livePlot line filename' + lineFile);
     livePlot(fileNames);
     nIntervId = setInterval(function(){
-        livePlot(fileNames);
         if(!$("#runLoader").hasClass('loader')){
             clearInterval(nIntervId);
+            return;
         }
+        livePlot(fileNames);
     }, 5000);
 }
 
 $("#livePlotFieldSelect").on('change',function() {
-    currentTable = Number($("#livePlotFieldSelect option:selected").val().split("_").pop());
-    
     if($("#analysisModeSelect").val()=="tracking" && diceTrackLibOn && showStereoPane==1)
-        plotTracklibDataTable();
-    else
+        updateTracklib2dScatter();
+    else{
+        currentTable = Number($("#livePlotFieldSelect option:selected").val().split("_").pop());
         plotDataTable();
+    }
 });
 
 function livePlot(fileNames){
@@ -57,12 +59,16 @@ function livePlot(fileNames){
         console.log("fileToDataObj succeeded!", response);
         var firstValidIndex = getFirstValidIndex(dataObjs);
         if(firstPlot){
+            $("#livePlotFieldSelect").empty();
             for(i=0;i<dataObjs[firstValidIndex].headings.length;++i){
                 var liID = "li_livePlot_" + i;
                 var liTitle = dataObjs[firstValidIndex].headings[i];
                 $("#livePlotFieldSelect").append(new Option(liTitle, liID));
             }
-            $('#livePlotFieldSelect :nth-child(2)').prop('selected', true); // To select via index
+            if($("#analysisModeSelect").val()=="tracking")
+                $('#livePlotFieldSelect :nth-child(4)').prop('selected', true); // To select via index
+            else
+                $('#livePlotFieldSelect :nth-child(2)').prop('selected', true); // To select via index
             currentTable = Number($("#livePlotFieldSelect option:selected").val().split("_").pop());
             firstPlot = false;
         }
@@ -110,5 +116,15 @@ function plotDataTable(){
         plotlyData[i].y = dataObjs[i].data[currentTable];
         plotlyData[i].name = plotlyData[i].name + String(i);
     }
-    Plotly.plot(document.getElementById(divID),plotlyData,layout);
+    var config = {
+            displaylogo: false,
+            scrollZoom: true,
+            responsive: true,
+            modeBarButtonsToRemove: [
+                'autoScale2d',
+                'select2d',
+                'lasso2d'
+                ]
+    };
+    Plotly.newPlot(document.getElementById(divID),plotlyData,layout,config);
 }

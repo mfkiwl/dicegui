@@ -8,15 +8,18 @@ document.getElementById("runLi").onclick = function() {
                 // delete any existing results files
                 fs.readdirSync(fullPath('results','')).forEach(file => {
                     // check if the file matches the syntax         
-                    if(file.indexOf('DICe_solution_') !== -1){
+                    if(file.indexOf('DICe_solution_') !== -1 || file.indexOf('live_plot_') !== -1){
                         fs.unlink(fullPath('results',file), (err) => {
                             if (err) throw err;
                             console.log('successfully deleted existing results file'+file);
                         });
                     }
                 });
+                deleteHiddenFiles('.results_2d');
                 // all the input file writes are chained via callbacks with the
                 // last callback executing DICe
+                $("#showContourCheck").prop("checked",false).change();
+                updateFrameScrollerRange();
                 startProgress();
                 writeInputFile(false);
                 $("#abortLi").show();
@@ -28,22 +31,13 @@ document.getElementById("runLi").onclick = function() {
             // all the input file writes are chained via callbacks with the
             // last callback executing DICe
             startProgress();
+            updateFrameScrollerRange();
+            $("#showContourCheck").prop("checked",false).change();
             writeInputFile(false);
             $("#abortLi").show();
             $("#sssigPreview").hide();
         }
     });
-};
-
-document.getElementById("sssigPreview").onclick = function() {
-    if(refImagePathLeft=="undefined") return;
-    //if(subsetLocationsFile!=''){
-     //   drawDotsAndBoxesForSubsets(subsetLocationsFile);
-    //}
-    else{
-        startProgress();
-        writeInputFile(false,false,true);
-    }
 };
 
 document.getElementById("writeLi").onclick = function() {
@@ -54,10 +48,8 @@ function integerLength(integer) {
     return integer.toString().length;
 }
 
-// global variable to see if there is already a live plot visible
-//var livePlotWin = null;
-//var livePlotLineWin = null;
 function showLivePlots(){
+    console.log('showLivePlots():');
     //var online = navigator.onLine;
     // disable live plots when working offline
     //if(!online){
@@ -68,12 +60,15 @@ function showLivePlots(){
     localStorage.setItem("workingDirectory",workingDirectory);
     if($("#analysisModeSelect").val()=="tracking"){
         if(diceTrackLibOn && showStereoPane==1){
-            livePlotTracklibRepeat();
+            // TODO enable live plots for tracklib
+            $("#plotsButton").trigger( "click" );
+            //livePlotTracklibRepeat();
         }else{
+            var numROI = numROIShapes();
             var livePlotFiles = '';
-            var numDigitsTotal = integerLength(ROIDefsX.length);
+            var numDigitsTotal = integerLength(numROI);
             // set up the files to read
-            for(i=0;i<ROIDefsX.length;++i){
+            for(var i=0;i<numROI;++i){
                 if(os.platform()=='win32'){
                     livePlotFiles += 'results\\';
                 }else{
@@ -82,99 +77,105 @@ function showLivePlots(){
                 var currentDigits = integerLength(i);
                 var numZeros = Number(numDigitsTotal) - Number(currentDigits);
                 livePlotFiles += 'DICe_solution_';
-                for(j=0;j<numZeros;++j)
+                for(var j=0;j<numZeros;++j)
                     livePlotFiles += '0';
                 livePlotFiles += i + '.txt';
-                if(i<ROIDefsX.length-1)
+                if(i<numROI-1)
                     livePlotFiles += ' ';
             }
             localStorage.setItem("livePlotFiles", livePlotFiles);
-            $("#resultsButton").trigger( "click" );
+            $("#plotsButton").trigger( "click" );
             livePlotRepeat();
         }
         return;
     }
-    if(livePlotPtsX.length <=0 && !addLivePlotLineActive) return;
-    if(livePlotPtsX.length >0){
+//    livePlotContourRepeat();
+    var livePlotInfo = livePlotDims();
+    if(livePlotInfo.numLivePlotPts<=0 && !livePlotInfo.livePlotLineActive) return;
+    if(livePlotInfo.numLivePlotPts >0){
         var livePlotFiles = ""
         // TODO set up the files to read
         //livePlotFiles = "DICe_solution_0.txt DICe_solution_1.txt DICe_solution_2.txt DICe_solution_3.txt DICe_solution_4.txt DICe_solution_5.txt DICe_solution_6.txt";
-        for(i=0;i<livePlotPtsX.length;++i){
+        for(var i=0;i<livePlotInfo.numLivePlotPts;++i){
+            if(os.platform()=='win32'){
+                livePlotFiles += 'results\\';
+            }else{
+                livePlotFiles += 'results/';
+            }
             livePlotFiles += 'live_plot_pt_' + i + '.txt';
-            if(i<livePlotPtsX.length-1)
+            if(i<livePlotInfo.numLivePlotPts-1)
                 livePlotFiles += ' ';
         }
         localStorage.setItem("livePlotFiles", livePlotFiles);
-        $("#resultsButton").trigger( "click" );
+        $("#plotsButton").trigger( "click" );
         livePlotRepeat();
     }
-    if(addLivePlotLineActive){
-        $("#resultsButton").trigger( "click" );
+    if(livePlotInfo.livePlotLineActive){
+        $("#plotsButton").trigger( "click" );
         livePlotLineRepeat();
     }
 }
 
 function resetWorkingDirectory(){
-        $("#refImageText span").text('');
-        $("#refImageTextRight span").text('');
-        $("#refImageTextMiddle span").text('');
-        $("#defImageListLeft").empty();
-        $("#defImageListRight").empty();
-        $("#defImageListMiddle").empty();
+    $("#frameScroller").attr('max',0);
+    $("#frameScroller").attr('min',0);
+    $("#frameScroller").val(0);
+    $("#currentPreviewSpan").text('');
 
-        $("#imageFolderSpan").text('');
-        $("#imageSequencePreviewSpan").text('');
-        $("#imagePrefix").val('');
-        $("#refIndex").val(0);
-        $("#startIndex").val(0);
-        $("#endIndex").val(0);
-        $("#skipIndex").val(1);
-        $("#numDigits").val(1);
-        $("#stereoLeftSuffix").val('_0');
-        $("#stereoRightSuffix").val('_1');
-        $("#stereoMiddleSuffix").val('_2');
-        $("#imageExtension").val('');
+    $("#refImageText span").text('');
+    $("#refImageTextRight span").text('');
+    $("#defImageListLeft").empty();
+    $("#defImageListRight").empty();
 
-        $("#cineLeftPreviewSpan").text('');
-        $("#cineRightPreviewSpan").text('');
-        $("#cineMiddlePreviewSpan").text('');
-        $("#cineStartPreviewSpan").text('');
-        $("#cineEndPreviewSpan").text('');
-        $("#cineRefIndex").val(0);
-        $("#cineStartIndex").val(0);
-        $("#cineEndIndex").val(0);
-        $("#cineSkipIndex").val(1);
-        
-        $("#calList").empty();
-        clearDrawnROIs();
-        clearROIs();
-        clearExcluded();
-        clearObstructed();
-        $("#runLoader").removeClass('post-loader-success');
-        $("#runLoader").removeClass('post-loader-fail');
-        $("#runLoader").removeClass('loader');
+    $("#imageFolderSpan").text('');
+    $("#imageSequencePreviewSpan").text('');
+    $("#imagePrefix").val('');
+    $("#refIndex").val(0);
+    $("#startIndex").val(0);
+    $("#endIndex").val(0);
+    $("#skipIndex").val(1);
+    $("#numDigits").val(1);
+    $("#stereoLeftSuffix").val('_0');
+    $("#stereoRightSuffix").val('_1');
+    $("#imageExtension").val('');
 
-        $("#panzoomLeft").html('');
-        $("#panzoomRight").html('');
-        $("#panzoomMiddle").html('');
+    $("#cineLeftPreviewSpan").text('');
+    $("#cineRightPreviewSpan").text('');
+    $("#startPreviewSpan").text('');
+    $("#endPreviewSpan").text('');
+    $("#cineRefIndex").val(0);
+    $("#cineStartIndex").val(0);
+    $("#cineEndIndex").val(0);
+    $("#cineSkipIndex").val(1);
+    $("#cineFrameRatePreviewSpan").text("");
+    $("#cineGoToIndex").val("");
 
-        $("#previewCross").hide();
-        $("#initCross").hide();
+    $("#calList").empty();
+    $("#runLoader").removeClass('post-loader-success');
+    $("#runLoader").removeClass('post-loader-fail');
+    $("#runLoader").removeClass('loader');
 
-        refImagePathLeft = "undefined";
-        refImagePathRight = "undefined";
-        refImagePathMiddle = "undefined";
-        cinePathLeft = "undefined";
-        cinePathRight = "undefined";
-        cinePathMiddle = "undefined";
-        calPath = "undefined";
+    resetPlotlyViewer('left');
+    resetPlotlyViewer('right');
+    
+    refImagePathLeft = "undefined";
+    refImagePathRight = "undefined";
+    cinePathLeft = "undefined";
+    cinePathRight = "undefined";
+    calPath = "undefined";
+    defImagePathsLeft = [];
+    defImagePathsRight = [];
 
-        deleteDisplayImageFiles(0);
-        deleteDisplayImageFiles(1);
-        deleteDisplayImageFiles(2);
+    deleteHiddenFiles('.preview_left');
+    deleteHiddenFiles('.preview_right');
 
-        deleteHiddenFiles('keypoints');
-        deleteHiddenFiles('background');
+    deleteHiddenFiles('keypoints');
+    deleteHiddenFiles('background');
+
+    $('#stepSelect').empty();
+    $('#livePlots').empty();
+    $('#livePlotLine').empty();
+    $("#consoleButton").trigger( "click" );
 }
 
 document.getElementById("clearLi").onclick = function() {
@@ -185,31 +186,16 @@ document.getElementById("clearLi").onclick = function() {
     }
 };
 
-document.getElementById("previewCross").onclick = function() {
-    callCrossInitExec();
-}
-document.getElementById("clearCross").onclick = function() {
-    var fileName = fullPath('','projection_points.dat');
-    fs.stat(fileName, function(err, stat) {
-        if(err == null) {
-            if (confirm('delete nonlinear warp seed file ' + fileName +'?')) {
-                fs.unlink(fileName, (err) => {
-                    if (err) throw err;
-                    console.log('successfully deleted '+fileName);
-                });
-                updateResultsFilesList();
-            }else{
-                return false;
-            }
-        }
-    });
-}
+//document.getElementById("previewCross").onclick = function() {
+//    callCrossInitExec();
+//}
 function callDICeExec(resolution,ss_locs) {
 
     // load the live plot viewer if there are any live plots:
 //    if($("#analysisModeSelect").val()=="tracking"&&showStereoPane==1){ // signifies tracklib
 //    }else
-    showLivePlots();
+    if(!ss_locs)
+        showLivePlots();
     
     // nuke the old line plot and point live plot files
     fs.readdirSync(workingDirectory).forEach(file => {
@@ -279,90 +265,40 @@ function callDICeExec(resolution,ss_locs) {
         else{
             endProgress(true);
             resultsFresh = true;
-            ROIsChanged = false;
             if(resolution){
                 localStorage.setItem("workingDirectory",workingDirectory);
                 var win = new BrowserWindow({ 
-                webPreferences: {
-		    nodeIntegration: true
-		},
-                width: 850, height: 1000 });
+                    webPreferences: {
+                        nodeIntegration: true
+                    },
+                    width: 850, height: 1000 });
                 win.on('closed', () => {
                     win = null
                 })
                 win.loadURL('file://' + __dirname + '/resolution.html');
                 //win.webContents.openDevTools()
             }else if(ss_locs){
-                drawDotsAndBoxesForSubsets(fullPath('.dice','.subset_locs.txt'));
+                addSubsetSSSIGPreviewTrace(fullPath('.dice','.subset_locs.txt'));
+//              drawDotsAndBoxesForSubsets(fullPath('.dice','.subset_locs.txt'));
             }else{
                 postExecTasks();
             }
         }
     });
-    
-//    var readline      = require('readline');
-//    var proc;
-//    if(ss_locs)
-//        proc = child_process.execFile(execPath, ['-i',inputFile,'-v','-t','--ss_locs'],{cwd:workingDirectory,maxBuffer:1024*1024});
-//    else
-//        proc = child_process.execFile(execPath, ['-i',inputFile,'-v','-t'],{cwd:workingDirectory,maxBuffer:1024*1024});
-//        
 }
 
-function updateCineDisplayImage(fileName,index,mode,reset_ref_ROIs){
-    var child_process = require('child_process');
-    var readline      = require('readline');
-    var tiffImageName = fullPath('.dice','.display_image_');
-    if(mode==0)
-        tiffImageName += 'left.tif';
-    else if(mode==1)
-        tiffImageName += 'right.tif';
-    else
-        tiffImageName += 'middle.tif';
-    consoleMsg("converting file " + fileName + " index " + index + " to .tif for display");
-    var procConv = child_process.spawn(execCineToTiffPath, [fileName,index,index,tiffImageName],{cwd:workingDirectory});//,maxBuffer:1024*1024})
-        readline.createInterface({
-            input     : procConv.stdout,
-            terminal  : false
-        }).on('line', function(line) {
-            consoleMsg(line);
-        });
-        procConv.on('error', function(){
-            alert('DICe .cine file converstion to .tiff failed: invalid executable: ' + execCineToTiffPath);
-        });
-        procConv.on('close', (code) => {
-            console.log(`child process exited with code ${code}`);
-            if(code!=0){
-                 alert('DICe .cine file conversion to .tiff failed');
-            }
-            else{
-                if(diceTrackLibOn && showStereoPane==1 && ($("#segPreviewCheck")[0].checked || $("#showTracksCheck")[0].checked)){
-                    applyFilterToImages(tiffImageName, mode);
-                }else{
-                    if(mode==0){
-                        getFileObject(tiffImageName, function (fileObject) {
-                            //loadImage(fileObject,"#panzoomLeft","auto","auto",1,false,reset_ref_ROIs,"","",true,function(){if(tracklibPreview) callOpenCVServerExec();});
-                            loadImage(fileObject,"#panzoomLeft","auto","auto",1,false,reset_ref_ROIs,"","",true);
-                        });
-                    }else if(mode==1){
-                        getFileObject(tiffImageName, function (fileObject) {
-                            //loadImage(fileObject,"#panzoomRight","auto","auto",1,false,false,"","",true,function(){if(tracklibPreview) callOpenCVServerExec();});
-                            loadImage(fileObject,"#panzoomRight","auto","auto",1,false,false,"","",true);
-                        });
-                    }else{
-                        getFileObject(tiffImageName, function (fileObject) {
-                            //loadImage(fileObject,"#panzoomMiddle","auto","auto",1,false,false,"","",true,function(){if(tracklibPreview) callOpenCVServerExec();});
-                            loadImage(fileObject,"#panzoomMiddle","auto","auto",1,false,false,"","",true);
-                        });
-                    }
-                }
-            }
-        });
+function updateCineDisplayImage(fileName,index,dest,cb){
+    cb = cb || $.noop;
+    // construct the file name with the indes
+    // this assumes that fileName is not alredy decorated
+    var decoratedFile = fileName.replace('.'+fileName.split('.').pop(),'_'+index+'.cine');
+    console.log('updating cine display image: ' + decoratedFile);
+    updatePreviewImage({srcPath:decoratedFile,dest:dest},cb);
 }
 
+function callCineStatExec(file,mode,callback) {
 
-function callCineStatExec(file,mode,reset_ref_ROIs,callback) {
-
+    callback = callback || $.noop;
     var child_process = require('child_process');
     var readline      = require('readline');
     var proc;
@@ -382,7 +318,7 @@ function callCineStatExec(file,mode,reset_ref_ROIs,callback) {
             input     : proc.stdout,
             terminal  : false
         }).on('line', function(line) {
-            consoleMsg(line);
+            console.log(line);
         });
         proc.on('error', function(){
             alert('DICe .cine file stat failed: invalid executable: ' + execCineStatPath);
@@ -412,15 +348,15 @@ function callCineStatExec(file,mode,reset_ref_ROIs,callback) {
                              //alert(stats[1]);
                              //alert(stats[2]);
                              // check that the two cine files have valid frame ranges
-                             if($("#cineStartPreviewSpan").text()!=""||$("#cineEndPreviewSpan").text()!="")
-                                 if($("#cineStartPreviewSpan").text()!=stats[1]||$("#cineEndPreviewSpan").text()!=stats[2]){
+                             if($("#startPreviewSpan").text()!=""||$("#endPreviewSpan").text()!="")
+                                 if($("#startPreviewSpan").text()!=stats[1]||$("#endPreviewSpan").text()!=stats[2]){
                                      alert("Error, all .cine files need to have matching frame ranges");
                                      return false;
                                  }
                              cineFirstFrame = stats[1];
-                             $("#cineStartPreviewSpan").text(stats[1]);
-                             $("#cineCurrentPreviewSpan").text(stats[1]);
-                             $("#cineEndPreviewSpan").text(stats[2]);
+                             $("#startPreviewSpan").text(stats[1]);
+                             $("#currentPreviewSpan").text(stats[1]);
+                             $("#endPreviewSpan").text(stats[2]);
                              $("#cineGoToIndex").val(stats[1]);
                              $("#cineFrameRatePreviewSpan").text(stats[3]);
                              if(mode==0){
@@ -436,17 +372,13 @@ function callCineStatExec(file,mode,reset_ref_ROIs,callback) {
                              if(mode==0){
                                  cinePathLeft = file.path;
                                  $("#cineLeftPreview span").text(file.name);
+                                 updateCineDisplayImage(fileName,stats[1],'left',callback); // only execute the callback after the left image is updated
                              }else if(mode==1){
                                  cinePathRight = file.path;
                                  $("#cineRightPreview span").text(file.name);
-                             }else if(mode==2){
-                                 cinePathMiddle = file.path;
-                                 $("#cineMiddlePreview span").text(file.name);
+                                 updateCineDisplayImage(fileName,stats[1],'right');
                              }
                              deleteHiddenFiles('keypoints');
-                             deleteDisplayImageFiles(mode,function(){updateCineDisplayImage(fileName,stats[1],mode,reset_ref_ROIs);});
-                             callback = callback || $.noop;
-                             callback();
                              return true;
                          }); // end else
                     }
@@ -456,152 +388,170 @@ function callCineStatExec(file,mode,reset_ref_ROIs,callback) {
     }); // end fileName fs.stat
 }
 
-function deactivateEpipolar(){
-    $("#drawEpipolar").css('color','rgba(0, 0, 0, 0.5)');
-    drawEpipolarActive = false;
-    drawEpipolarLine(false,0,0,true);
-}
+//function deactivateEpipolar(){
+//    $("#drawEpipolar").css('color','rgba(0, 0, 0, 0.5)');
+//    drawEpipolarActive = false;
+//    drawEpipolarLine(false,0,0,true);
+//}
 
-function applyFilterToImages(fileName, mode){
+function updateTracklibDisplayImages(index,loadData=true){
+    console.log('updateTracklibDisplayImages()');
+    if(cinePathLeft=="undefined"||cinePathRight=="undefined"){
+        alert('cannot update tracklib image preview since the paths are not defined');
+        console.log('left path ' + cinePathLeft + ' right path ' + cinePathRight);
+        return;
+    }
+    if(calPath=="undefined"){
+        alert('calibration file must be set to preview');
+        return;
+    }
+    
     // set up the arguments for the OpenCVServer
     args = [];
-    // create the list of files:
-    args.push(fileName);
-    var outName = '';
-    if(mode==0){
-        if(os.platform()=='win32'){
-            outName = '.dice\\.display_image_left_filter.png';
-        }else{
-            outName = '.dice/.display_image_left_filter.png'
-        }
-    }else if(mode==1){
-        if(os.platform()=='win32'){
-            outName ='.dice\\.display_image_right_filter.png';
-        }else{
-            outName ='.dice/.display_image_right_filter.png';
-        }
-    }else{
-        if(os.platform()=='win32'){
-            outName ='.dice\\.display_image_middle_filter.png';
-        }else{
-            outName ='.dice/.display_image_middle_filter.png';
-        }
-    }
-    args.push(outName);
-    
-    // for now always create a background to subtract (maybe later make this an option)
-    if(cinePathLeft!='undefined'&&cinePathRight!='undefined'){ // background substraction assumes a cine file
-        args.push('filter:background');
-        args.push('cine_file_name');
-        var background_out = '';
-        if(mode==0){
-            args.push(cinePathLeft);
-            if(os.platform()=='win32'){
-                background_out = '.dice\\.background_left.tif';
-            }else{
-                background_out = '.dice/.background_left.tif'
-            }
-        }else if(mode==1){
-            args.push(cinePathRight);
-            if(os.platform()=='win32'){
-                background_out ='.dice\\.background_right.tif';
-            }else{
-                background_out ='.dice/.background_right.tif';
-            }
-        }
-        args.push('background_file_name');
-        args.push(background_out);
-        args.push('background_ref_frame');
-        args.push($("#cineStartIndex").val());
-        args.push('background_num_frames');
-        var numBackgroundFrames = parseInt($("#numBackgroundFrames").val());
-        //console.log('num background frames --- ' + numBackgroundFrames);
-        if(numBackgroundFrames<1||numBackgroundFrames > ($("#cineEndIndex").val()-$("#cineStartIndex").val())){
-            alert('warning: invalid num background frames (needs to be an integer value between 1 and the total num frames in the cine file)\nSetting num background frames to 1');
-            numBackgroundFrames = 1;
-            $("#numBackgroundFrames").val(1);
-        }
-        args.push(numBackgroundFrames); // TODO make this a user parameter in the GUI eventually
-    }
     
     // push the arguments to opencvserver
-    args.push('filter:tracklib');
-    args.push('frame_number');
-    args.push($("#cineCurrentPreviewSpan").text());
-    args.push('is_left');
-    if(mode==0)
-        args.push('true');
-    else
-        args.push('false');
+    args.push('tracklib');
+
+    var displayLeft = "";
+    if(os.platform()=='win32'){
+        displayLeft = '.dice\\.preview_left.png';
+    }else{
+        displayLeft = '.dice/.preview_left.png';
+    }
+    var displayRight = "";
+    if(os.platform()=='win32'){
+        displayRight = '.dice\\.preview_right.png';
+    }else{
+        displayRight = '.dice/.preview_right.png';
+    }
+
+//    args.push('display_file_left');
+//    args.push(displayLeft);
+//    args.push('display_file_right');
+//    args.push(displayRight);
+//    
+//    args.push('preview_mode');
+//    args.push('true');
+
+    args.push('show_segmentation');
+    args.push($("#showSegmentationCheck")[0].checked);
+    
+    args.push('cine_file');
+    args.push(cinePathLeft);
+    args.push('stereo_cine_file');
+    args.push(cinePathRight);
+
+    args.push('cine_ref_index');
+    args.push(parseInt($("#cineRefIndex").val()));
+    
+    args.push('write_results');
+    if(isResultsMode())
+        args.push('false'); // seems counterintuitive to not write results
+    // when in results mode, but this is prevent over-writing a full analysis results file
+    else args.push('true');
+    
+    args.push('cine_start_index');
+    var startFrame = Number($("#currentPreviewSpan").text());
+    if(!isResultsMode()){ // only one frame is shown in results mode
+        startFrame = Number($("#currentPreviewSpan").text()) - ($("#numPreviewFrames").val()-1)*$("#cineSkipIndex").val();
+        if(startFrame < Number($("#startPreviewSpan").text()))
+            startFrame = Number($("#startPreviewSpan").text());
+    }
+    args.push(startFrame);
+    // overload the start frame as the current frame since the preview begins
+    // with the current frame
+//    args.push($("#cineStartIndex").val());
+//    args.push($("#currentPreviewSpan").text());
+    
+    // the end frame is the start frame plus num_frames * skips
+    args.push('cine_preview_index'); // the last frame is also the preview frame for preview mode
+    args.push(parseInt($("#currentPreviewSpan").text()));
+    args.push('cine_end_index');
+    args.push(parseInt($("#currentPreviewSpan").text()));
+//    var endFrame = Number($("#currentPreviewSpan").text()) + ($("#numPreviewFrames").val()-1)*$("#cineSkipIndex").val();
+//    if(endFrame > Number($("#endPreviewSpan").text()))
+//        endFrame = Number($("#endPreviewSpan").text());
+//    args.push(endFrame);
+    
+    args.push('cine_skip_index');
+    args.push(parseInt($("#cineSkipIndex").val()));
+    
+    args.push('camera_system_file');
+    args.push(calPath);
+    
     args.push('thresh_left');
     args.push(parseInt($("#threshLeft").val()));
+
     args.push('thresh_right');
     args.push(parseInt($("#threshRight").val()));
+    
     args.push('min_area');
     args.push(parseInt($("#minArea").val()));
+    
     args.push('max_area');
     args.push(parseInt($("#maxArea").val()));
+    
+    args.push('num_background_frames');
+    var numBackgroundFrames = parseInt($("#numBackgroundFrames").val());
+    if(numBackgroundFrames<1||numBackgroundFrames > ($("#cineEndIndex").val()-$("#cineStartIndex").val())){
+        numBackgroundFrames = 1;
+        $("#numBackgroundFrames").val(1);
+    }
+    args.push(numBackgroundFrames);
+    
     args.push('max_pt_density'); // needs to be a double value
-    if($("#maxPtDensity").val().includes('.')){
-        args.push($("#maxPtDensity").val());
-    }else{
-        args.push($("#maxPtDensity").val()  +'.0');
-    }
+    args.push(Number($("#maxPtDensity").val()).toFixed(7));
+    
     args.push('colocation_tol'); // needs to be a double value
-    if($("#colocationTol").val().includes('.')){
-        args.push($("#colocationTol").val());
+    args.push(Number($("#colocationTol").val()).toFixed(2));
+    
+    args.push('neighbor_radius');
+    args.push(Number($("#neighborRadius").val()).toFixed(1));
+
+    args.push('dist_weight');
+    args.push(Number($("#distWeight").val()).toFixed(2));
+
+    args.push('area_tol'); // needs to be a double value
+    args.push(Number($("#areaTol").val()).toFixed(2));
+    
+    args.push('area_weight');
+    args.push(Number($("#areaWeight").val()).toFixed(2));
+
+    args.push('gray_tol');
+    args.push(parseInt($("#grayTol").val()));
+    
+    args.push('gray_weight');
+    args.push(Number($("#grayWeight").val()).toFixed(2));
+
+    args.push('angle_tol'); // needs to be a double value
+    args.push(Number($("#angleTol").val()).toFixed(2));
+
+    args.push('angle_weight');
+    args.push(Number($("#angleWeight").val()).toFixed(2));
+
+    args.push('stereo_area_tol'); // needs to be a double value
+    args.push(Number($("#stereoAreaTol").val()).toFixed(2));
+    
+    args.push('stereo_area_weight');
+    args.push(Number($("#stereoAreaWeight").val()).toFixed(2));
+
+    args.push('dist_from_epi_tol'); // needs to be a double value
+    args.push(Number($("#distFromEpiTol").val()).toFixed(2));
+    
+    args.push('dist_from_epi_weight');
+    args.push(Number($("#distFromEpiWeight").val()).toFixed(2));
+
+    args.push('min_pts_per_track');
+    args.push(parseInt($("#minPtsPerTrack").val()));
+
+    args.push('num_search_frames');
+    if(parseInt($("#numSearchFrames").val())>=1){
+        args.push(parseInt($("#numSearchFrames").val()));
     }else{
-        args.push($("#colocationTol").val()  +'.0');
+        args.push('1');
     }
-    args.push('show_tracks');
-    if($("#showTracksCheck")[0].checked)
-        args.push('true');
-    else
-        args.push('false');
-    args.push('show_only_active');
-    if($("#showOnlyActiveCheck")[0].checked)
-        args.push('true');
-    else
-        args.push('false');
-    args.push('show_segmentation');
-    if($("#segPreviewCheck")[0].checked)
-        args.push('true');
-    else
-        args.push('false');
-//    args.push('show_threshold');
-//    if($("#threshPreviewCheck")[0].checked)
-//        args.push('true');
-//    else
-//        args.push('false');
-//    args.push('show_trajectory');
-//    if($("#trajectoryPreviewCheck")[0].checked)
-//        args.push('true');
-//    else
-//        args.push('false');
-//    args.push('invert_colors');
-//    if($("#invertColorsCheck")[0].checked)
-//        args.push('true');
-//    else
-//        args.push('false');
-//    // thresholding method
-//    args.push('threshold_mode');
-//    if($("#threshModeSelect").val()=="mean"){
-//        args.push('MEAN');
-//    }else{
-//        args.push('GAUSSIAN');
-//    }
-//    // block size
-//    args.push('block_size');
-//    var blockSize = parseInt($("#threshBlockSize").val());
-//    if(blockSize %2 ==0) blockSize++;
-//    args.push(blockSize);
-//    // adaptive constant
-//    args.push('binary_constant'); // needs to be a double value
-//    if($("#threshAdaptiveConstant").val().includes('.')){
-//        args.push($("#threshAdaptiveConstant").val());
-//    }else{
-//        args.push($("#threshAdaptiveConstant").val()  +'.0');
-//    }
+
+    
     console.log(args);
     var child_process = require('child_process');
     var readline      = require('readline');
@@ -613,25 +563,19 @@ function applyFilterToImages(fileName, mode){
     proc.on('close', (code) => {
         console.log(`OpenCVServer exited with code ${code}`);
         if(code==0){
-            //console.log("loading tracklib filtered image: " + fullPath('',outName));
-            fs.stat(fullPath('',outName), function(err, stat) {
-                if(err == null) {
-                    getFileObject(fullPath('',outName), function (fileObject) {
-                        if(mode==0){
-                            cineLeftOpenCVComplete = true;
-                            loadImage(fileObject,"#panzoomLeft","auto","auto",1,false,false,"","",false);
-                            console.log("loading image after applying tracklib filter " + cineLeftOpenCVComplete + " " + cineRightOpenCVComplete);
-                        }else{
-                            cineRightOpenCVComplete = true;
-                            loadImage(fileObject,"#panzoomRight","auto","auto",1,false,false,"","",false);
-                            console.log("loading image after applying tracklib filter " + cineLeftOpenCVComplete + " " + cineRightOpenCVComplete);
-                        }
-                    });
-                }else{
-                }
-            });
+            if(isResultsMode()&&loadData)
+                loadPlotlyJsonOutput('results');
+            else if(loadData){
+                loadPlotlyJsonOutput('preview');
+                loadPlotlyFilteredJsonOutput();
+            }
+            else{
+                updatePreviewImage({srcPath:fullPath('',displayLeft),dest:'left'},function(){
+                    clearDebugUtils();});
+                updatePreviewImage({srcPath:fullPath('',displayRight),dest:'right'});
+            }
         }else{
-            console.log('error ocurred while applying filter: ' + code);
+            console.log('error ocurred for tracklib preview: ' + code);
         }
     });
     readline.createInterface({
@@ -640,109 +584,8 @@ function applyFilterToImages(fileName, mode){
     }).on('line', function(line) {
         consoleMsg(line);
     });
+    
 }
-
-function drawEpipolarLine(isLeft,dot_x,dot_y,reset=false) {
-    //if($("#analysisModeSelect").val()!="tracking") return;
-    // check to see that there is at least one image selected:
-    if(refImagePathLeft=='undefined'&&refImagePathRight=='undefined'&&refImagePathMiddle=='undefined') return;
-    // generate the command line
-    args = [];
-    leftName = '';
-    leftNameFilter = '';
-    rightName = '';
-    rightNameFilter = '';
-    hiddenDir = fullPath('.dice','');
-    fs.readdir(hiddenDir, (err,dir) => {
-        for(var i = 0; i < dir.length; i++) {
-            if(dir[i].includes('.display_image_left')&&!dir[i].includes('filter')&&!dir[i].includes('epipolar')){
-                leftName = fullPath('.dice',dir[i]);
-                leftNameFilter = fullPath('.dice',dir[i].replace('.'+dir[i].split('.').pop(),"_filter.png"));
-                leftNameEpipolar = fullPath('.dice',dir[i].replace('.'+dir[i].split('.').pop(),"_epipolar.png"));
-            }else if(dir[i].includes('.display_image_right')&&!dir[i].includes('filter')&&!dir[i].includes('epipolar')){
-                rightName = fullPath('.dice',dir[i]);
-                rightNameFilter = fullPath('.dice',dir[i].replace('.'+dir[i].split('.').pop(),"_filter.png"));
-                rightNameEpipolar = fullPath('.dice',dir[i].replace('.'+dir[i].split('.').pop(),"_epipolar.png"));
-            }
-        }
-        if(reset){
-            getFileObject(leftName, function (fileObject) {
-                loadImage(fileObject,"#panzoomLeft","auto","auto",1,false,false,"","",false);
-            });
-            getFileObject(rightName, function (fileObject) {
-                loadImage(fileObject,"#panzoomRight","auto","auto",1,false,false,"","",false);
-            });
-            return;
-        }
-        if($("#segPreviewCheck")[0].checked || $("#showTracksCheck")[0].checked)
-            args.push(leftNameFilter);
-        else
-            args.push(leftName);
-        args.push(leftNameEpipolar);
-        if($("#segPreviewCheck")[0].checked || $("#showTracksCheck")[0].checked)
-            args.push(rightNameFilter);
-        else
-            args.push(rightName);
-        args.push(rightNameEpipolar);
-        args.push('filter:epipolar_line');
-        args.push('frame_number');
-        args.push($("#cineCurrentPreviewSpan").text());
-        args.push('epipolar_is_left');
-        if(isLeft)
-            args.push('true');
-        else
-            args.push('false');
-        args.push('epipolar_dot_x');
-        args.push(dot_x);
-        args.push('epipolar_dot_y');
-        args.push(dot_y);
-        args.push('cal_file');
-        args.push(fullPath('','cal.xml'));
-        consoleMsg('calling OpenCVServerExec with args ' + args);
-
-        // call the filter exec
-        var child_process = require('child_process');
-        var readline      = require('readline');
-        var proc = child_process.spawn(execOpenCVServerPath,args,{cwd:workingDirectory});//,maxBuffer:1024*1024});
-
-        proc.on('error', function(){
-            alert('DICe OpenCVServer failed for epipolar line: invalid executable: ' + execOpenCVServerPath);
-        });
-        proc.on('close', (code) => {
-            console.log(`OpenCVServer exited with code ${code}`);
-            if(code!=0){
-                alert('OpenCVServer failed');
-            }
-            else{
-                // load new preview images
-                fs.stat(fullPath('.dice','.display_image_left_epipolar.png'), function(err, stat) {
-                    if(err == null) {
-                        getFileObject(fullPath('.dice','.display_image_left_epipolar.png'), function (fileObject) {
-                            loadImage(fileObject,"#panzoomLeft","auto","auto",1,false,false,"","",false);
-                        });
-                    }else{
-                    }
-                });
-                fs.stat(fullPath('.dice','.display_image_right_epipolar.png'), function(err, stat) {
-                    if(err == null) {
-                        getFileObject(fullPath('.dice','.display_image_right_epipolar.png'), function (fileObject) {
-                            loadImage(fileObject,"#panzoomRight","auto","auto",1,false,false,"","",false);
-                        });
-                    }else{
-                    }
-                });
-            }
-        });
-        readline.createInterface({
-            input     : proc.stdout,
-            terminal  : false
-        }).on('line', function(line) {
-            consoleMsg(line);
-        });
-    })
-}
-
-
 
 function callCrossInitExec() {
 
@@ -803,15 +646,26 @@ function callCrossInitExec() {
 }
 
 function postExecTasks(){
-    if(paraviewMsg){
-        alert('Analysis successful\n\nView the results files using ParaView\nwhich can be freely downloaded at\nwww.paraview.org');
-        paraviewMsg = false;
-    }
+//    if(paraviewMsg){
+//        alert('Analysis successful\n\nView the results files using ParaView\nwhich can be freely downloaded at\nwww.paraview.org');
+//        paraviewMsg = false;
+//    }
     if($("#exportMovieCheck")[0].checked){
         consoleMsg('writing results movie to results folder');
         var child_process = require('child_process');
         var proc = child_process.spawn(execTrackingMoviePath,['input.xml'],{cwd:workingDirectory});
     }
+    // if this is a mono tracking run, load the results files into memory in case the user wants to view the tracked results
+    if($("#analysisModeSelect").val()=="tracking"){
+        if(showStereoPane==1){
+            loadPlotlyJsonOutput('results');
+            checkHasOutput();
+            $("#resultsButton").trigger( "click" );
+        }else{
+            loadTrackingResultsIntoMemory();
+        }
+    }
+    displayResults();
 }
 
 function startProgress (){
@@ -840,32 +694,43 @@ function writeInputFile(only_write,resolution=false,ss_locs=false) {
     content += '<ParameterList>\n';
     content += '<Parameter name="output_folder" type="string" value="' + outputFolder + '" /> \n';
     content += '<Parameter name="correlation_parameters_file" type="string" value="' + paramsFile + '" />\n';
+
+    var ROIShapes = getPlotlyShapes('ROI');
+    var numROIs = ROIShapes.length;
+    //  for global if no ROI has been defined, define a default one
+    if(numROIs==0&&$("#analysisModeSelect").val()=="global"){
+        // if no ROIs are defined for global, define one large ROI
+        var points = {x:[20,refImageWidth-20,refImageWidth-20,20],
+                y:[20,20,refImageHeight-20,refImageHeight-20]};
+        var shape = pointsToPathShape(points,'ROI_0');
+        ROIShapes.push(shape);
+        var update = {shapes: ROIShapes};
+        Plotly.relayout(document.getElementById("plotlyViewerLeft"),update);
+//        plotlyDivLeft.layout.shapes.push(shape);
+        numROIs++;
+    }
+    console.log('writeInputFile(): num ROIs ' + numROIs);
+    var subsetCoordinates = getSubsetCoordinatesTrace();
+    var numSubsets = 0;
+    if(subsetCoordinates.x)
+        numSubsets = subsetCoordinates.x.length;
+    console.log('writeInputFile(): num custom(or conformal) subsets ' + numSubsets);
     
     // check that some ROIs have been defined if this is the tracking mode
-    if($("#analysisModeSelect").val()=="tracking" && showStereoPane==0 && ROIDefsX[0].length==0 && !only_write){
-        alert('ROIs must be defined');
+    if($("#analysisModeSelect").val()=="tracking" && showStereoPane==0 && numROIs==0 && !only_write){
+        alert('tracking subsets must be defined');
         endProgress(false);
         $("#abortLi").hide();
         $("#sssigPreview").show();
         return;
     }
-    if(ROIDefsX[0].length>=3||subsetCoordinatesX.length>0){
+    if(numROIs>0||numSubsets>0){
         content += '<Parameter name="subset_file" type="string" value="' + subsetFile + '" />\n';
-    }else if(ROIDefsX[0].length==0&&$("#analysisModeSelect").val()=="global"){
-        content += '<Parameter name="subset_file" type="string" value="' + subsetFile + '" />\n';
-        // if no ROIs are defined for global, define one large ROI
-        ROIDefsX[0].push(20);
-        ROIDefsY[0].push(20);
-        ROIDefsX[0].push(refImageWidthLeft-20);
-        ROIDefsY[0].push(20);
-        ROIDefsX[0].push(refImageWidthLeft-20);
-        ROIDefsY[0].push(refImageHeightLeft-20);
-        ROIDefsX[0].push(20);
-        ROIDefsY[0].push(refImageHeightLeft-20);
     }
+    
     if($("#analysisModeSelect").val()=="subset"){
         content += '<Parameter name="subset_size" type="int" value="'+$("#subsetSize").val()+'" />\n';
-        if(subsetCoordinatesX.length==0)
+        if(numSubsets==0)
             content += '<Parameter name="step_size" type="int" value="'+$("#stepSize").val()+'" />\n';
         content += '<Parameter name="separate_output_file_for_each_subset" type="bool" value="false" />\n';
     }else if($("#analysisModeSelect").val()=="tracking"){
@@ -913,9 +778,9 @@ function writeInputFile(only_write,resolution=false,ss_locs=false) {
     }
     else if(fileSelectMode=="sequence"){
         var folderName = $("#imageFolderSpan").text();
-        if(os.platform()=='win32'){
+        if(os.platform()=='win32'&&folderName.slice(-1)!='\\'){
             folderName += '\\';
-        }else{
+        }else if(folderName.slice(-1)!='/'){
             folderName += '/';
         }
         content += '<Parameter name="image_folder" type="string" value="'+folderName +'" />\n';
@@ -929,6 +794,8 @@ function writeInputFile(only_write,resolution=false,ss_locs=false) {
         if((showStereoPane==1||showStereoPane==2)){
             content += '<Parameter name="stereo_left_suffix" type="string" value="'+$("#stereoLeftSuffix").val()+'"/>\n';
             content += '<Parameter name="stereo_right_suffix" type="string" value="'+$("#stereoRightSuffix").val()+'" />\n';
+        }else{
+            content += '<Parameter name="file_suffix" type="string" value="'+$("#imageSuffix").val()+'" />\n';
         }
     }
     else if(fileSelectMode=="cine"){
@@ -938,6 +805,8 @@ function writeInputFile(only_write,resolution=false,ss_locs=false) {
         content += '<Parameter name="cine_start_index" type="int" value="'+$("#cineStartIndex").val()+'" />\n';
         content += '<Parameter name="cine_skip_index" type="int" value="'+$("#cineSkipIndex").val()+'" />\n';
         content += '<Parameter name="cine_end_index" type="int" value="'+$("#cineEndIndex").val()+'" />\n';
+        if($("#analysisModeSelect").val()=="tracking"&&showStereoPane==1) // signifies tracklib
+            content += '<Parameter name="cine_preview_index" type="int" value="'+parseInt($("#frameScroller").val())+'" />\n';
         if((showStereoPane==1||showStereoPane==2)&&!resolution&&!ss_locs){
             content += '<Parameter name="stereo_cine_file" type="string" value="'+cinePathRight+'" />\n';
         }
@@ -953,39 +822,55 @@ function writeInputFile(only_write,resolution=false,ss_locs=false) {
 }
 
 function writeBestFitFile() {
-            if($("#bestFitCheck")[0].checked&&$("#analysisModeSelect").val()=="subset"){
-                var bestFitFile = fullPath('','best_fit_plane.dat');
-                consoleMsg('writing best fit plane file ' + bestFitFile);
-                var BFcontent = '';
-                BFcontent += '# origin of the coordinate system\n';
-                BFcontent += bestFitXOrigin + ' ' + bestFitYOrigin + '\n'
-                BFcontent += '# point on the axis \n';
-                BFcontent += bestFitXAxis + ' ' + bestFitYAxis;
-                if($("#bestFitYAxisCheck")[0].checked){
-                    BFcontent += ' YAXIS ';
-                }
-                BFcontent += '\n';
-                fs.writeFile(bestFitFile, BFcontent, function (err) {
-                if(err){
-                    alert("Error: an error ocurred creating the file "+ err.message)
-                }
-                consoleMsg('best_fit_plane.dat file has been successfully saved');
-                });
-            }
+    if(!$("#bestFitCheck")[0].checked||$("#analysisModeSelect").val()!="subset"||showStereoPane!=1) return;
+    var bestFitShapes = getPlotlyShapes('bestFitLine');
+    if(bestFitShapes.length==0) return;
+    var bestFitFile = fullPath('','best_fit_plane.dat');
+    consoleMsg('writing best fit plane file ' + bestFitFile);
+    var BFcontent = '';
+    BFcontent += '# origin of the coordinate system\n';
+    BFcontent += Math.floor(bestFitShapes[0].x0) + ' ' + Math.floor(bestFitShapes[0].y0) + '\n'
+    BFcontent += '# point on the axis \n';
+    BFcontent += Math.floor(bestFitShapes[0].x1) + ' ' + Math.floor(bestFitShapes[0].y1);
+    if($("#bestFitYAxisCheck")[0].checked){
+        BFcontent += ' YAXIS ';
+    }
+    BFcontent += '\n';
+    fs.writeFile(bestFitFile, BFcontent, function (err) {
+        if(err){
+            alert("Error: an error ocurred creating the file "+ err.message)
+        }
+        consoleMsg('best_fit_plane.dat file has been successfully saved');
+    });
 }
 
 function writeLivePlotsFile() {
-    if((livePlotPtsX.length >0 || addLivePlotLineActive)&&($("#analysisModeSelect").val()=="subset"||$("#analysisModeSelect").val()=="global")){
+    if($("#analysisModeSelect").val()!="subset") return;
+    var data = document.getElementById("plotlyViewerLeft").data;
+    if(!data) return;
+    var livePlotPtsTraceId = data.findIndex(obj => { 
+        return obj.name === "live plot pts";
+    });
+    console.log('writeLivePlotsFile(): livePlotPtsTraceId ' + livePlotPtsTraceId);
+    if(livePlotPtsTraceId<0) return;
+    var x = data[livePlotPtsTraceId].x;
+    var y = data[livePlotPtsTraceId].y;
+    var lineShapes = getPlotlyShapes('livePlotLine');
+    if(lineShapes.length>1){
+        alert('error ocurred in determining live plot line shapes');
+    }
+    if(x.length > 0||lineShapes.length==1){
         var livePlotFile = fullPath('','live_plot.dat');
-        consoleMsg('writing live plot data file ' + livePlotFile);
+        console.log('writing live plot data file ' + livePlotFile);
         var LPcontent = '';
         LPcontent += '# two numbers is a point four numbers is a line\n';
-        for(i=0;i<livePlotPtsX.length;++i){
-            LPcontent += livePlotPtsX[i] + ' ' + livePlotPtsY[i] + '\n'
+        for(var i=0;i<x.length;++i){
+            LPcontent += x[i] + ' ' + y[i] + '\n'
         }
-        if(addLivePlotLineActive){
-            LPcontent += livePlotLineXOrigin + ' ' + livePlotLineYOrigin + ' ' + livePlotLineXAxis + ' ' + livePlotLineYAxis + '\n'
-        }
+        if(lineShapes.length==1)
+            LPcontent += Math.floor(lineShapes[0].x0) + ' ' + Math.floor(lineShapes[0].y0) + 
+            ' ' + Math.floor(lineShapes[0].x1) + ' ' + Math.floor(lineShapes[0].y1) + '\n'
+        // TODO should we allow multiple lines?
         fs.writeFile(livePlotFile, LPcontent, function (err) {
             if(err){
                  alert("Error: an error ocurred creating the file "+ err.message)
@@ -1042,6 +927,8 @@ function writeParamsFile(only_write,resolution,ss_locs) {
         content += '<Parameter name="estimate_resolution_error_amplitude_step" type="double" value="1.0" />\n';
     }
     if($("#analysisModeSelect").val()=="tracking"&&showStereoPane==1){ // signifies tracklib
+        // set the show tracks check to true by default
+        $('#showTrackingCheck').prop('checked', true);
         content += '<Parameter name="thresh_left" type="int" value="' + parseInt($("#threshLeft").val()) +'" />\n';
         content += '<Parameter name="thresh_right" type="int" value="' + parseInt($("#threshRight").val()) +'" />\n';
         content += '<Parameter name="min_area" type="int" value="' + parseInt($("#minArea").val()) +'" />\n';
@@ -1052,92 +939,55 @@ function writeParamsFile(only_write,resolution,ss_locs) {
             return;
         }
         content += '<Parameter name="min_pts_per_track" type="int" value="' + parseInt($("#minPtsPerTrack").val()) +'" />\n';
-        if(parseInt($("#maxTrackGap").val())<1){
-            alert('max track gap must be 1 or larger');
+        if(parseInt($("#numSearchFrames").val())<1){
+            alert('num search frames must be 1 or larger');
             endProgress(false);
             return;
         }
-        content += '<Parameter name="max_track_gap" type="int" value="' + parseInt($("#maxTrackGap").val()) +'" />\n';
+        content += '<Parameter name="show_segmentation" type="bool" value="true" />\n'; // segmentation is always on for results viewing
+        content += '<Parameter name="num_search_frames" type="int" value="' + parseInt($("#numSearchFrames").val()) +'" />\n';
         content += '<Parameter name="max_pt_density" type="double" value="';
-        if($("#maxPtDensity").val().includes('.')){
-            content += $("#maxPtDensity").val();
-        }else{
-            content += $("#maxPtDensity").val()  +'.0';
-        }
+        content += Number($("#maxPtDensity").val()).toFixed(7);
         content += '" />\n';
         content += '<Parameter name="colocation_tol" type="double" value="';
-        if($("#colocationTol").val().includes('.')){
-            content += $("#colocationTol").val();
-        }else{
-            content += $("#colocationTol").val()  +'.0';
-        }
-        content += '" />\n';
-        content += '<Parameter name="match_tol" type="double" value="';
-        if($("#matchTol").val().includes('.')){
-            content += $("#matchTol").val();
-        }else{
-            content += $("#matchTol").val()  +'.0';
-        }
-        content += '" />\n';
-        content += '<Parameter name="cross_match_tol" type="double" value="';
-        if($("#crossMatchTol").val().includes('.')){
-            content += $("#crossMatchTol").val();
-        }else{
-            content += $("#crossMatchTol").val()  +'.0';
-        }
+        content += Number($("#colocationTol").val()).toFixed(2);
         content += '" />\n';
         content += '<Parameter name="neighbor_radius" type="double" value="';
-        if($("#neighborRadius").val().includes('.')){
-            content += $("#neighborRadius").val();
-        }else{
-            content += $("#neighborRadius").val()  +'.0';
-        }
+        content += Number($("#neighborRadius").val()).toFixed(1);
         content += '" />\n';
-//        content += '<Parameter name="block_size" type="int" value="' + parseInt($("#threshBlockSize").val()) +'" />\n';
-//        content += '<Parameter name="binary_constant" type="double" value="';
-//        if($("#threshAdaptiveConstant").val().includes('.')){
-//            content += $("#threshAdaptiveConstant").val();
-//        }else{
-//            content += $("#threshAdaptiveConstant").val()  +'.0';
-//        }
-//        content += '" />\n';
-//        content += '<Parameter name="bucket_size_theta" type="double" value="';
-//        if($("#bucketSizeTheta").val().includes('.')){
-//            content += $("#bucketSizeTheta").val();
-//        }else{
-//            content += $("#bucketSizeTheta").val()  +'.0';
-//        }
-//        content += '" />\n';
-//        content += '<Parameter name="bucket_size_r" type="double" value="';
-//        if($("#bucketSizeR").val().includes('.')){
-//            content += $("#bucketSizeR").val();
-//        }else{
-//            content += $("#bucketSizeR").val()  +'.0';
-//        }
-//        content += '" />\n';
-//        content += '<Parameter name="cross_epi_tol" type="double" value="';
-//        if($("#crossEpiTol").val().includes('.')){
-//            content += $("#crossEpiTol").val();
-//        }else{
-//            content += $("#crossEpiTol").val()  +'.0';
-//        }
-//        content += '" />\n';
-//        content += '<Parameter name="frag_neigh_radius_sq" type="double" value="';
-//        if($("#neighRadSq").val().includes('.')){
-//            content += $("#neighRadSq").val();
-//        }else{
-//            content += $("#neighRadSq").val()  +'.0';
-//        }
-//        content += '" />\n';
-//        if($("#invertColorsCheck")[0].checked)
-//            content += '<Parameter name="invert_colors" type="bool" value="true" />\n';
-//        content += '<Parameter name="threshold_mode" type="string" value="';
-//        if($("#threshModeSelect").val()=="mean"){
-//            content += 'mean';
-//        }else{
-//            content += 'gaussian';
-//        }
-//        content += '" />\n';
+        content += '<Parameter name="dist_weight" type="double" value="';
+        content += Number($("#distWeight").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="area_tol" type="double" value="';
+        content += Number($("#areaTol").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="area_weight" type="double" value="';
+        content += Number($("#areaWeight").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="gray_tol" type="int" value="';
+        content += parseInt($("#grayTol").val());
+        content += '" />\n';
+        content += '<Parameter name="gray_weight" type="double" value="';
+        content += Number($("#grayWeight").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="angle_tol" type="double" value="';
+        content += Number($("#angleTol").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="angle_weight" type="double" value="';
+        content += Number($("#angleWeight").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="stereo_area_tol" type="double" value="';
+        content += Number($("#stereoAreaTol").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="stereo_area_weight" type="double" value="';
+        content += Number($("#stereoAreaWeight").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="dist_from_epi_tol" type="double" value="';
+        content += Number($("#distFromEpiTol").val()).toFixed(2);
+        content += '" />\n';
+        content += '<Parameter name="dist_from_epi_weight" type="double" value="';
+        content += Number($("#distFromEpiWeight").val()).toFixed(2);
+        content += '" />\n';
         var numBackgroundFrames = parseInt($("#numBackgroundFrames").val());
         if(numBackgroundFrames<0||numBackgroundFrames > ($("#cineEndIndex").val()-$("#cineStartIndex").val())){
             alert('warning: invalid num background frames (needs to be an integer value between 0 and the total num frames in the cine file)\nSetting num background frames to 0');
@@ -1148,6 +998,7 @@ function writeParamsFile(only_write,resolution,ss_locs) {
     }else{
         content += '<Parameter name="interpolation_method" type="string" value="KEYS_FOURTH" />\n';
         if($("#analysisModeSelect").val()=="subset"){
+            var validShapeFunctions = false;
             content += '<Parameter name="sssig_threshold" type="double" value="'+$("#sssigThresh").val()+'" />\n';
             content += '<Parameter name="optimization_method" type="string" value="GRADIENT_BASED" />\n';
             var initMode = $("#initSelect").val();
@@ -1168,21 +1019,25 @@ function writeParamsFile(only_write,resolution,ss_locs) {
                 content += '<Parameter name="initialization_method" type="string" value="USE_NEIGHBOR_VALUES" />\n';
             }
             if($("#translationCheck")[0].checked){
+                validShapeFunctions = true;
                 content += '<Parameter name="enable_translation" type="bool" value="true" />\n';
             }else{
                 content += '<Parameter name="enable_translation" type="bool" value="false" />\n';
             }
             if($("#rotationCheck")[0].checked){
+                validShapeFunctions = true;
                 content += '<Parameter name="enable_rotation" type="bool" value="true" />\n';
             }else{
                 content += '<Parameter name="enable_rotation" type="bool" value="false" />\n';
             }
             if($("#normalStrainCheck")[0].checked){
+                validShapeFunctions = true;
                 content += '<Parameter name="enable_normal_strain" type="bool" value="true" />\n';
             }else{
                 content += '<Parameter name="enable_normal_strain" type="bool" value="false" />\n';
             }  
             if($("#shearStrainCheck")[0].checked){
+                validShapeFunctions = true;
                 content += '<Parameter name="enable_shear_strain" type="bool" value="true" />\n';
             }else{
                 content += '<Parameter name="enable_shear_strain" type="bool" value="false" />\n';
@@ -1192,6 +1047,13 @@ function writeParamsFile(only_write,resolution,ss_locs) {
                 content += '<Parameter name="strain_window_size_in_pixels" type="int" value="'+$("#strainGaugeSize").val()+'" />\n';
                 content += '</ParameterList>\n';
             }
+            if(!validShapeFunctions){
+                alert('Error: no shape functions selected');
+                return;
+            }
+            content += '<ParameterList name="post_process_plotly_contour">\n';
+            content += '<Parameter name="plotly_contour_grid_step" type="int" value=" ' + $("#stepSize").val() + '" />\n';
+            content += '</ParameterList>\n';
         }else if($("#analysisModeSelect").val()=="global"){
             content += '<Parameter name="max_solver_iterations_fast" type="int" value="500" />\n';
             content += '<Parameter name="global_solver" type="string" value="gmres_solver" />\n';
@@ -1268,147 +1130,125 @@ function writeParamsFile(only_write,resolution,ss_locs) {
 
 function writeSubsetFile(only_write,resolution,ss_locs){
 
+    if($("#analysisModeSelect").val()=="tracking"&&showStereoPane==1){ // for tracklib, no subset file needs to be written
+        if(!only_write)
+            callDICeExec(resolution,ss_locs);
+        return;
+    }
+    
     var subsetFile = fullPath('','subset_defs.txt');
     consoleMsg('writing subset file ' + subsetFile);
+
+    var pathShapes = getPlotlyShapes('ROI');
+    var numROIs = pathShapes.length;
+    var excludedShapes = getPlotlyShapes('excluded');
+    var numExcluded = excludedShapes.length;
+    
     var content = '';
     content += '# Auto generated subset file from DICe GUI\n';
-    
-    if(subsetCoordinatesX.length>0){
-        // cannot have ROIs defined and subset coordinates for full field subset method
+
+    var subsetCoordinates = getSubsetCoordinatesTrace();
+    var numSubsets = 0;
+    if(subsetCoordinates.x)
+        numSubsets = subsetCoordinates.x.length;
+    if(numSubsets>0){
         if($("#analysisModeSelect").val()=="global"){
-            alert('Custom subset locations cannot be defined for global method. ROIs must be cleared then redrawn.');
-            endProgress(false);
-            return;
-        }
-        if($("#analysisModeSelect").val()=="subset"&&ROIDefsX[0].length > 2&&subsetCoordinatesX.length>0){
-            alert('Custom subset coordinates and ROIs cannot be defined at the same time. ROIs must be cleared (to remove custom subset locations) then redrawn.');
-            endProgress(false);
-            return;
+          alert('Custom subset locations cannot be defined for global method.');
+          endProgress(false);
+          return;
         }
         content += 'begin subset_coordinates\n';
-        for(i = 0, l = subsetCoordinatesX.length; i < l; i++) {
-            content += subsetCoordinatesX[i] + ' ' + subsetCoordinatesY[i] + '\n';
+        for(i = 0; i < numSubsets; i++) {
+            content += subsetCoordinates.x[i] + ' ' + subsetCoordinates.y[i] + '\n';
         }
         content += 'end subset_coordinates\n';
     }
-    if(($("#analysisModeSelect").val()=="subset"||$("#analysisModeSelect").val()=="global")&&ROIDefsX[0].length>=3){
-        if(ROIDefsX[0].length != ROIDefsY[0].length){
-            alert('Error: subset file creation failed, invalid vertices for region of interest');
-            endProgress(false);
-            return false;
-        }
-        
+
+    if(($("#analysisModeSelect").val()=="subset"||$("#analysisModeSelect").val()=="global")&&numROIs>0){
+        // in this case the pathshapes define an ROI, not conformal subsets
         content += 'begin region_of_interest\n';
         content += '  begin boundary\n';
-        // write all the boundary shapes
-        for(i = 0, l = ROIDefsX.length; i < l; i++) {
-            var ROIx = ROIDefsX[i];
-            var ROIy = ROIDefsY[i];
+        for(var i=0;i<numROIs;++i){
             content += '    begin polygon\n';
             content += '      begin vertices\n';
-            for(var j = 0, jl = ROIx.length; j < jl; j++) {
-                content += '        ' +  ROIx[j] + ' ' + ROIy[j] + '\n';
+            var points = pathShapeToPoints(pathShapes[i]);
+            for(var j=0;j<points.x.length;j++){
+                content += '        ' +  points.x[j] + ' ' + points.y[j] + '\n';
             }
             content += '      end vertices\n';
             content += '    end polygon\n';
         }
         content += '  end boundary\n';
-        if(excludedDefsX.length>0){
-            if(excludedDefsX[0].length > 2){
-                content += '  begin excluded\n';
-                for(i = 0, l = excludedDefsX.length; i < l; i++) {
-                    var ROIx = excludedDefsX[i];
-                    var ROIy = excludedDefsY[i];
-                    content += '    begin polygon\n';
-                    content += '      begin vertices\n';
-                    for(var j = 0, jl = ROIx.length; j < jl; j++) {
-                        content += '        ' + ROIx[j] + ' ' + ROIy[j] + '\n';
-                    }
-                    content += '      end vertices\n';
-                    content += '    end polygon\n';
+        
+        // TODO deal with obstructued (if we decide to continue supporting this
+
+        if(numExcluded>0){
+            content += '  begin excluded\n';
+            for(var i = 0; i < numExcluded; i++) {
+                content += '    begin polygon\n';
+                content += '      begin vertices\n';
+                var points = pathShapeToPoints(excludedShapes[i]);
+                for(var j=0;j<points.x.length;j++){
+                    content += '        ' +  points.x[j] + ' ' + points.y[j] + '\n';
                 }
-                content += '  end excluded\n';
-            } // excluded[0].length > 2
-        } // excluded defs > 0
-        content += 'end region_of_interest\n';
-    }else if($("#analysisModeSelect").val()=="tracking"&&ROIDefsX[0].length>=3){ // tracking mode
-        if(ROIDefsX[0].length != ROIDefsY[0].length){
-            alert('Error: subset file creation failed, invalid vertices for region of interest');
-            endProgress(false);
-            return false;
+                content += '      end vertices\n';
+                content += '    end polygon\n';
+            }
+            content += '  end excluded\n';
         }
-//        content += 'begin subset_coordinates\n';
-//        // use the centroid of each shape as the frame of reference origin
-//        for(var i = 0, l = ROIDefsX.length; i < l; i++) {
-//            var centroid = centroidOfPolygon(ROIDefsX[i],ROIDefsY[i]);
-//            content += centroid.x + ' ' + centroid.y + '\n';
-//        }
-//        content += 'end subset_coordinates\n';
+        content += 'end region_of_interest\n';
+        
+    }else if($("#analysisModeSelect").val()=="tracking"&&numROIs>0){ // tracking mode
 
         // add a polygon for each ROI
-        for(i = 0, l = ROIDefsX.length; i < l; i++) {
+        for(var i = 0; i < numROIs; i++) {
             content += 'begin conformal_subset\n';
             content += '  subset_id ' + i + '\n';
             content += '  begin boundary\n';
             content += '    begin polygon\n'; 
             content += '      begin vertices\n';
-            var ROIx = ROIDefsX[i];
-            var ROIy = ROIDefsY[i];
-            for(j = 0, jl = ROIx.length; j < jl; j++) {
-                content += '        ' +  ROIx[j] + ' ' + ROIy[j] + '\n';
+            var points = pathShapeToPoints(pathShapes[i]);
+            for(var j=0;j<points.x.length;j++){
+                content += '        ' +  points.x[j] + ' ' + points.y[j] + '\n';
             }
             content += '      end vertices\n';
             content += '    end polygon\n';
             content += '  end boundary\n';
+            
+            // TODO deal with obstructed
+            
             // excluded
-            var has_excluded = false;
-            for(j = 0, jl = excludedAssignments.length; j < jl; j++) {
-                if(excludedAssignments[j]==i)
-                    has_excluded = true;
+            var hasExcluded = false;
+            for(var j = 0; j < numExcluded; j++) {
+                var excludedId = parseInt(excludedShapes[j].name.split('_').pop());
+                if(excludedId == i)
+                    hasExcluded = true;
             }
-            if(has_excluded){
+            if(hasExcluded){
                 content += '  begin excluded\n';
             }
-            for(j = 0, jl = excludedAssignments.length; j < jl; j++) {
-                if(excludedAssignments[j]==i){
+            for(var j = 0; j < numExcluded; j++) {
+                var excludedId = parseInt(excludedShapes[j].name.split('_').pop());
+                if(excludedId == i){
                     content += '    begin polygon\n'; 
                     content += '      begin vertices\n';
-                    var ROIx = excludedDefsX[j];
-                    var ROIy = excludedDefsY[j];
-                    for(k = 0, kl = ROIx.length; k < kl; k++) {
-                        content += '        ' +  ROIx[k] + ' ' + ROIy[k] + '\n';
+                    var points = pathShapeToPoints(excludedShapes[j]);
+                    for(var k=0;k<points.x.length;k++){
+                        content += '        ' +  points.x[k] + ' ' + points.y[k] + '\n';
                     }
                     content += '      end vertices\n';
                     content += '    end polygon\n';
                 }
             }
-            if(has_excluded){
+            if(hasExcluded){
                 content += '  end excluded\n';
             }
-            // obstructed
-            if(obstructedDefsX.length > 0){
-                if(obstructedDefsX[0].length >= 3){
-                    content += '  begin obstructed\n';
-                    for(j = 0, jl = obstructedDefsX.length; j < jl; j++) {
-                        content += '    begin polygon\n'; 
-                        content += '      begin vertices\n';
-                        var ROIx = obstructedDefsX[j];
-                        var ROIy = obstructedDefsY[j];
-                        for(k = 0, kl = ROIx.length; k < kl; k++) {
-                            content += '        ' +  ROIx[k] + ' ' + ROIy[k] + '\n';
-                        }
-                        content += '      end vertices\n';
-                        content += '    end polygon\n';
-                    }
-                    content += '  end obstructed\n';
-                }
-                content += 'end conformal_subset\n';
-            }
+            content += 'end conformal_subset\n';
         }
         // for each ROI add the excluded regions with the excludedAssignment = to the ROI id
         // add all obstructions to all ROIs
     }
-    if(ROIDefsX[0].length>=3||subsetCoordinatesX.length>0){
+    if(numROIs>0||subsetCoordinates.x){
         fs.writeFile(subsetFile, content, function (err) {
             if(err){
                 alert("Error: an error ocurred creating the file "+ err.message)
@@ -1423,94 +1263,151 @@ function writeSubsetFile(only_write,resolution,ss_locs){
     }
 }
 
+function checkHasOutput(){
+    if($("#analysisModeSelect").val()=="tracking"&&showStereoPane==1){ // tracklib
+        // see if outputfiles exists
+        fs.stat(fullPath('.dice','.results_3d.json'), function(err, stat) {
+            if(err == null) {
+                $("#resultsButton").show();
+            }else{
+                $("#resultsButton").hide();
+            }
+        });
+    }
+}
+
 function checkValidInput() {
-    consoleMsg('checking if input requirements met to enable running DICe ...');
+//    consoleMsg('checking if input requirements met to enable running DICe ...');
     var validInput = true;
     var enableCross = true;
     //var enableResolution = true;
     var isSequence = $("#fileSelectMode").val()=='sequence';
     var isCine =  $("#fileSelectMode").val()=='cine';
-
+    var isList = $("#fileSelectMode").val()=='list';
+    var isStereo = showStereoPane==1||showStereoPane==2;
+    var calRequired = isStereo || $("#calibrationCheck")[0].checked;
+    //var isTracklib = $("#analysisModeSelect").val()=="tracking"&&isStereo;
+    // clear the ul and add relevant items for this type of analysis
+    $("#taskList").empty();
+    if(isList){
+        $("#taskList").append('<li id=\"listLoadRefLi\" class=\"task-list-item\";>load ref image</li>');
+        $("#taskList").append('<li id=\"listLoadDefLi\" class=\"task-list-item\";>load def image(s)</li>');
+        if(isStereo){
+            $("#taskList").append('<li id=\"listLoadStereoRefLi\" class=\"task-list-item\";>load stereo ref image</li>');
+            $("#taskList").append('<li id=\"listLoadStereoDefLi\" class=\"task-list-item\";>load stereo def image(s)</li>');
+        }
+    }else if(isSequence){
+        $("#taskList").append('<li id=\"seqLoadLi\" class=\"task-list-item\";>load image sequence</li>');
+    }else if(isCine){
+        $("#taskList").append('<li id=\"cineLoadLi\" class=\"task-list-item\";>load cine</li>');
+        if(isStereo){
+            $("#taskList").append('<li id=\"cineLoadStereoLi\" class=\"task-list-item\";>load stereo cine</li>');
+        }
+    }
+    if(calRequired)
+        $("#taskList").append('<li id=\"loadCalLi\" class=\"task-list-item\";>perform or load cal</li>');
+    // catch tracking with no ROIs defined
+    if($("#analysisModeSelect").val()=="tracking"&&!isStereo){
+        $("#taskList").append('<li id=\"defineROIsLi\" class=\"task-list-item\";>define tracking subsets</li>');
+      var ROIShapes = getPlotlyShapes('ROI');
+      var numROIs = ROIShapes.length;
+      if(numROIs<=0){
+          $('#defineROIsLi').removeClass('task-list-item-done');
+          validInput = false;
+      }else
+          $('#defineROIsLi').addClass('task-list-item-done');
+    }
+    if(calRequired){
+        if(!calPath || calPath=='undefined'){
+            validInput = false;
+            $('#loadCalLi').removeClass('task-list-item-done');
+        }else
+            $('#loadCalLi').addClass('task-list-item-done');
+    }
     if(isCine){
         if(cinePathLeft=="undefined"){
             validInput = false;
-            //enableResolution = false;
             enableCross = false;
+            $('#cineLoadLi').removeClass('task-list-item-done');
+            $(".ref-image-required").attr("disabled", true);
+            $(".ref-image-required").prop("checked", false);
+        }else{
+            $('#cineLoadLi').addClass('task-list-item-done');
+            $(".ref-image-required").removeAttr("disabled");
         }
-        if(showStereoPane==1||showStereoPane==2){
+        if(isStereo){
             if(cinePathRight=="undefined"){
                 validInput = false;
                 enableCross = false;
-            }
-            if(calPath=='undefined'){
-                validInput = false;
-            }
-        }
-        if(showStereoPane==0&&$("#calibrationCheck")[0].checked){
-            if(calPath=='undefined'){
-                validInput = false;
-            }
+                $('#cineLoadStereoLi').removeClass('task-list-item-done');
+            }else
+                $('#cineLoadStereoLi').addClass('task-list-item-done');
         }
     }
-    else{
-    // see if the left reference image is set:
-    if(refImagePathLeft=='undefined'||(refImagePathLeft=='sequence' && !isSequence)) {
-        consoleMsg('left reference image not set yet');
-        validInput = false;
-        enableCross = false;
-        //enableResolution = false;
-    }
-    // check that the image extensions all match
-    var refExtension = refImagePathLeft.split('.').pop().toLowerCase();
-    if(!defImagePathsLeft[0]){
-        consoleMsg('deformed images have not been defined yet');
-        validInput = false;
-    }
-    // check all the deformed images
-    if(!isSequence){
-      for(var i = 0, l = defImagePathsLeft.length; i < l; i++) {
-        var defExtension = defImagePathsLeft[i].name.split('.').pop().toLowerCase();
-        if(refExtension!=defExtension){
-            //consoleMsg('deformed image ' + defImagePathsLeft[i].name + ' extension does not match ref extension');
+    else if(isSequence){
+        // see if the left reference image is set:
+        if(refImagePathLeft=='undefined'||!defImagePathsLeft[0]) {
+//            consoleMsg('left reference image not set yet');
             validInput = false;
+            enableCross = false;
+            $('#seqLoadLi').removeClass('task-list-item-done');
+            $(".ref-image-required").attr("disabled", true);
+            $(".ref-image-required").prop("checked", false);
+        }else{
+            $('#seqLoadLi').addClass('task-list-item-done');
+            $(".ref-image-required").removeAttr("disabled");
         }
-      }
+        // nothing really changes for is stereo for sequence
     }
-
-    if(showStereoPane==1||showStereoPane==2||(showStereoPane==0&&$("#calibrationCheck")[0].checked)){
-      if(!calPath){
-          validInput = false;
-      }
-      if(!isSequence){
-        for(var i = 0, l = defImagePathsRight.length; i < l; i++) {
-          var defExtension = defImagePathsRight[i].name.split('.').pop().toLowerCase();
-          if(refExtension!=defExtension){
-              //consoleMsg('deformed image ' + defImagePathsRight[i].name + ' extension does not match ref extension');
-              validInput = false;
-          }
-        }
-      }
-    }
-    
-    // TODO check right images ...
-    // see if the right reference image is set:
-    if(refImagePathRight=='undefined'||(refImagePathRight=='sequence' && !isSequence)) {
-        consoleMsg('right reference image not set yet');
-        enableCross = false;
-        if(showStereoPane==1||showStereoPane==2)
+    else{ // assume list
+        // see if the left reference image is set:
+        if(refImagePathLeft=='undefined') {
+//            consoleMsg('left reference image not set yet');
             validInput = false;
-    }
-    if(!isSequence&&defImagePathsRight.length<1)
-        if(showStereoPane==1||showStereoPane==2)
-          validInput = false;
-    } // end else (not cine)
+            enableCross = false;
+            $('#listLoadRefLi').removeClass('task-list-item-done');
+            $(".ref-image-required").attr("disabled", true);
+            $(".ref-image-required").prop("checked", false);
+        }else{
+            $('#listLoadRefLi').addClass('task-list-item-done');
+            $(".ref-image-required").removeAttr("disabled");
+        }
+            
+        // TODO check that the image extensions all match?
+        //var refExtension = refImagePathLeft.split('.').pop().toLowerCase();
+        if(!defImagePathsLeft[0]){
+//            consoleMsg('deformed images have not been defined yet');
+            validInput = false;
+            $('#listLoadDefLi').removeClass('task-list-item-done');
+        }else
+            $('#listLoadDefLi').addClass('task-list-item-done');
+        // see if the right reference image is set:
+        if(isStereo){
+            console.log(refImagePathRight);
+            if(refImagePathRight=='undefined') {
+                enableCross = false;
+//                consoleMsg('right reference image not set yet');
+                validInput = false;
+                $('#listLoadStereoRefLi').removeClass('task-list-item-done');
+            }else
+                $('#listLoadStereoRefLi').addClass('task-list-item-done');
+            if(!defImagePathsRight[0]){
+//                consoleMsg('right deformed images have not been defined yet');
+                validInput = false;
+                $('#listLoadStereoDefLi').removeClass('task-list-item-done');
+            }else
+                $('#listLoadStereoDefLi').addClass('task-list-item-done');
+        }
+    } // end list file input
+        
+        
     // TODO see if the left and right ref have the same dimensions
     // TODO check the number of def images left and right
-    
+
     if(validInput){
         $("#runLi").show();
         $("#writeLi").show();
-        consoleMsg("input requirements successful");
+//        consoleMsg("input requirements successful");
     }else{
         $("#runLi").hide();
         $("#writeLi").hide();
@@ -1522,9 +1419,125 @@ function checkValidInput() {
         $("#previewCross").hide();
         $("#initCross").hide();
     }
-    //if(enableResolution){
-    //    $("#resolutionLi").show();
-    //}else{
-    //    $("#resolutionLi").hide();
-    //}
 }
+
+$("#showContourCheck").change(function() {
+    if(this.checked){
+        removeSubsetPreview();
+        $(".contour-setting").removeAttr("disabled");
+        showContourPlot(resizePreview);
+    }else{
+        $(".contour-setting").attr("disabled", true);
+        deletePlotlyTraces('left','fullFieldLSContour');
+        deletePlotlyTraces('left','subset results');
+    }
+});
+
+$("#contourFieldSelect").change(function() {
+    showContourPlot(resizePreview);
+});
+
+function adjustContourOpacity(){
+    var result = document.getElementById("plotlyViewerLeft").data.findIndex(obj => { 
+        return obj.name === 'fullFieldLSContour';
+    });
+    var newVal =  $("#contourOpacitySelect").val();
+    if(result>=0)
+        Plotly.restyle(document.getElementById("plotlyViewerLeft"), {"opacity": newVal}, [result]);
+}
+
+$("#contourOpacitySelect").change(function() {
+    adjustContourOpacity();
+});
+
+function showContourPlot(cb){
+    if(!$("#showContourCheck")[0].checked) return;
+    var LSFileName = getContourJsonFileName(true);
+    var fieldName = $("#contourFieldSelect").val();
+    console.log('showContourPlot(): file ' + LSFileName + ' field ' + fieldName );
+    
+    Plotly.d3.json(LSFileName, function(jsonErr, fig) {
+        if(jsonErr==null){
+            //console.log(fig);
+            // copy the selected field to the z array
+            fig.data[0].z = fig.data[0][fieldName];
+            for(var i=0;i<fig.data[0].z.length;++i)
+                if(fig.data[0].STATUS_FLAG[i] < 0.0)
+                    fig.data[0].z[i] = null;
+            fig.data[0].x = fig.data[0]['COORDINATE_X'];
+            fig.data[0].y = fig.data[0]['COORDINATE_Y'];
+            updatePlotlyData('left',fig.data,cb);
+            adjustContourOpacity();
+        }else{
+            console.log(jsonErr);
+            alert('error: reading subset least squares contour json file failed');
+        }
+    });
+
+    var fileName = getContourJsonFileName();
+    console.log('showContourPlot(): file ' + fileName );
+    
+    Plotly.d3.json(fileName, function(jsonErr, fig) {
+        if(jsonErr==null){
+            //console.log(fig);
+            updatePlotlyData('left',fig.data,cb);
+        }else{
+            console.log(jsonErr);
+            alert('error: reading subset raw data json file failed');
+        }
+    });
+}
+
+function getContourJsonFileName(leastSquares = false){
+    var frameId = $("#frameScroller").val();
+    if($("#fileSelectMode").val()=="list")
+        frameId -= 1; // for sequence and list, the zeroeth index is the reference image so need to decrement by 1
+    // check if the file exists for this frameID, if not return
+    if(leastSquares) return fullPath('.dice','.results_2d_ls_' + frameId + '.json');
+    else return fullPath('.dice','.results_2d_' + frameId + '.json');
+}
+
+function populateContourFields(){
+    // TODO make this switch on analysis type
+    $("#contourFieldSelect").append(new Option('COORDINATE_X','COORDINATE_X'));
+    $("#contourFieldSelect").append(new Option('COORDINATE_Y','COORDINATE_Y'));
+    $("#contourFieldSelect").append(new Option('DISPLACEMENT_X','DISPLACEMENT_X'));
+    $("#contourFieldSelect").append(new Option('DISPLACEMENT_Y','DISPLACEMENT_Y'));
+    $("#contourFieldSelect").append(new Option('SIGMA','SIGMA'));
+    $("#contourFieldSelect").append(new Option('GAMMA','GAMMA'));
+    $("#contourFieldSelect").append(new Option('BETA','BETA'));
+    $("#contourFieldSelect").append(new Option('STATUS_FLAG','STATUS_FLAG'));
+    $("#contourFieldSelect").append(new Option('UNCERTAINTY','UNCERTAINTY'));
+    $("#contourFieldSelect").append(new Option('VSG_STRAIN_XX','VSG_STRAIN_XX'));
+    $("#contourFieldSelect").append(new Option('VSG_STRAIN_YY','VSG_STRAIN_YY'));
+    $("#contourFieldSelect").append(new Option('VSG_STRAIN_XY','VSG_STRAIN_XY'));
+}
+
+function checkSubsetJsonFileExists(){
+    var fileName = getContourJsonFileName(true);
+    console.log('loadSubsetJsonFile(): ' + fileName);
+    fs.stat(fileName, function(err, stat) {
+        if(err == null) {
+            $("#showContourCheck").removeAttr("disabled");
+            showContourPlot();
+        }else{
+            console.log(err);
+            // clear the field select menu
+//            $("#contourFieldSelect").empty();
+            $("#showContourCheck").attr("disabled", true);
+            $("#showContourCheck").prop("checked", false).change();
+            // remove contour plots if they have already been plotted
+            
+        }
+    });
+}
+
+function displayResults(){
+    if($("#analysisModeSelect").val()=="subset"){
+        if($("#fileSelectMode").val()=="list") // advance past the ref frame
+            $("#frameScroller").val(1).change();
+        $("#showContourCheck").prop("checked",true).change();
+//        checkSubsetJsonFileExists();
+    }
+}
+

@@ -23,7 +23,6 @@ function initialize_gui(load_existing){
     $("#runLi").hide();
     $("#abortLi").hide();
     $("#writeLi").hide();
-    $("#resolutionLi").hide();
     // hide the stereo utilities
     $("#previewCross").hide();
     $("#initCross").hide();
@@ -40,7 +39,6 @@ function initialize_gui(load_existing){
     // hide the minimized bars for closed views
     $("#leftMinimized").hide();
     $("#rightMinimized").hide();
-    $("#middleMinimized").hide();
 
     fs.stat(fileName, function(err, stat) {
         if(err == null) {
@@ -61,8 +59,6 @@ function initialize_gui(load_existing){
                     showStereoViewer();
                 }else if(showStereoPaneState==0){
                     show2DViewer();
-                }else{
-                    showTrinocViewer();
                 }
                 if(omitTextState){
                     $("#omitTextCheck").prop("checked",true);
@@ -88,7 +84,7 @@ function initialize_gui(load_existing){
                         setExecPaths(execPathOverride);
                     }
                 }
-                paraviewMsg = paraviewMsgState;
+//                paraviewMsg = paraviewMsgState;
                 workingDirectory = WD;
                 if (fs.existsSync(workingDirectory)) {
                     createHiddenDir();
@@ -117,9 +113,8 @@ function initialize_gui(load_existing){
                     updateWorkingDirLabel();
                 }
                 // remove all the display images:
-                deleteDisplayImageFiles(0);
-                deleteDisplayImageFiles(1);
-                deleteDisplayImageFiles(2);
+                deleteHiddenFiles('.preview_left');
+                deleteHiddenFiles('.preview_right');
                 deleteHiddenFiles('keypoints');
                 deleteHiddenFiles('background');
                 // test if debugging messages are turned on or off
@@ -147,9 +142,8 @@ function initialize_gui(load_existing){
             });
             updateWorkingDirLabel();
             // remove all the display images:
-            deleteDisplayImageFiles(0);
-            deleteDisplayImageFiles(1);
-            deleteDisplayImageFiles(2);
+            deleteHiddenFiles('.preview_left');
+            deleteHiddenFiles('.preview_right');
             deleteHiddenFiles('keypoints');
             deleteHiddenFiles('background');
             // test if debugging messages are turned on or off
@@ -157,7 +151,10 @@ function initialize_gui(load_existing){
         } else {
             consoleMsg('error occurred trying to load previous state');
         }
+        return;
     });
+    checkValidInput();
+    populateContourFields();
 };
 
 function createHiddenDir(){
@@ -248,6 +245,7 @@ function testForDebugMsg() {
                     if (showStereoPaneState == 1 && $("#analysisModeSelect").val() == 'tracking') {
                         $(".non-tracklib-tools").hide();
                         $(".tracklib-tools").show();
+                        $(".results-right").show();
                         showStereoViewer();
                     }
                 }
@@ -273,18 +271,22 @@ $("#changeWorkingDirLi").click(function(){
         workingDirectory = path[0];
         updateWorkingDirLabel();
         createHiddenDir();
+        resetWorkingDirectory();
         var fileName = fullPath('','input.xml');
         fs.stat(fileName, function(err, stat) {
             if(err == null) {
                 if (confirm('load the existing input files in this working directory?')) {
                     console.log('loading existing input file if it exists: ' + fileName);
                     parse_input_xml_file(fileName);
+                    checkValidInput();
                 }else{
                     return false;
                 }
             }else {
+                checkValidInput();
             }
         });
+        
     }
 });
 
@@ -293,12 +295,12 @@ $("#changeImageFolder").click(function(){
     if(path){
         autoDetectImageSequence(path[0],updateSequenceLabels);
         $('#imageFolder span').text(path[0]);
-        //updateImageSequencePreview();
     }
 });
 
 function updateSequenceLabels(stats){
     $("#imagePrefix").val(stats.prefix);
+    $("#imageSuffix").val(stats.suffix);
     $("#startIndex").val(stats.startIndex);
     $("#endIndex").val(stats.endIndex);
     $("#skipIndex").val(stats.frameInterval);
@@ -306,17 +308,23 @@ function updateSequenceLabels(stats){
     $("#stereoLeftSuffix").val(stats.leftSuffix);
     $("#stereoRightSuffix").val(stats.rightSuffix);
     $("#imageExtension").val(stats.extension);
-
+    updateFrameScrollerRange();
     updateImageSequencePreview(true);
 }
 
-$("#imagePrefix,#refIndex,#numDigits,#imageExtension,#stereoLeftSuffix,#stereoRightSuffix,#stereoMiddleSuffix").on('keyup',function(){
-    updateImageSequencePreview(false);
-});
+$("#startIndex,#endIndex,#skipIndex,#imagePrefix,#numDigits,#imageExtension,#stereoLeftSuffix,#stereoRightSuffix").keypress(function(event) { 
+    if(!$('#fileSelectMode').val()=="sequence") return;
+    if (event.keyCode === 13) { 
+        if($('#skipIndex').val()<0)
+            $('#skipIndex').val(0);
+        updateFrameScrollerRange();
+        updateImageSequencePreview(true);
+    }
+}); 
 
 function concatImageSequenceName(stereoImageFlag){
     var fullImageName = "";
-    $('#imageSequencePreview span').text('');    
+    $('#imageSequencePreview span').text('');
     fullImageName = $("#imageFolderSpan").text();
     if(os.platform()=='win32'){
         fullImageName += '\\';
@@ -325,7 +333,7 @@ function concatImageSequenceName(stereoImageFlag){
     }
     fullImageName += $("#imagePrefix").val();
     // get the number of digits in the ref index
-    var tmpNum = Number($("#refIndex").val());
+    var tmpNum = Number($("#currentPreviewSpan").text());//Number($("#refIndex").val());
     var defDig = 0;
     if(tmpNum==0)
         defDig = 1;
@@ -334,17 +342,17 @@ function concatImageSequenceName(stereoImageFlag){
     }
     var digits = Number($("#numDigits").val());
     if(digits > 1)
-        for(j=0;j<digits - defDig;++j){
+        for(var j=0;j<digits - defDig;++j){
             fullImageName += "0";
         }
-    fullImageName += $("#refIndex").val();
+    fullImageName += $("#currentPreviewSpan").text();//$("#refIndex").val();
     if((showStereoPane==1||showStereoPane==2)&&stereoImageFlag==0){
         fullImageName += $("#stereoLeftSuffix").val();
     }else if((showStereoPane==1||showStereoPane==2)&&stereoImageFlag==1){
         fullImageName += $("#stereoRightSuffix").val();
-    }else if((showStereoPane==1||showStereoPane==2)&&stereoImageFlag==2){
-        fullImageName += $("#stereoMiddleSuffix").val();
     }
+    if(showStereoPane==0)
+        fullImageName += $("#imageSuffix").val();
     fullImageName += $("#imageExtension").val();
     return fullImageName;
 }
@@ -359,7 +367,7 @@ function updateImageSequencePreview(loadImage){
         if(err == null) {
             $("#imageSequencePreview").css({color:"#009933"})
             if(loadImage)
-                load_image_sequence(false);
+                loadImageSequence();
         }
         else{
             $("#imageSequencePreview").css({color:"#ff0000"})
@@ -424,14 +432,12 @@ function showParams(){
     $('#innerFluidRightCol').css('display','inline-block');
     $('#innerFluidRightCol').css('width','25%');
     $('#innerFluidLeftCol').css('width','75%');
-    resizeViewerFillDivs();
     resizeAll();
     showPrefPane = true;
 }
 function hideParams(){
     $('#innerFluidRightCol').css('display','none');
     $('#innerFluidLeftCol').css('width','100%');
-    resizeViewerFillDivs();
     resizeAll();
     showPrefPane = false;
 }
@@ -462,12 +468,10 @@ $(".pane-opener").click(function(){
         $("#subFillDivLeft").show();
     }else if(myId=="rightMinimized"){
         $("#subFillDivRight").show();
-    }else if(myId=="middleMinimized"){
-        $("#subFillDivMiddle").show();
     }
     // hide this element
     $(this).parent().parent().parent().hide();
-    resizeViewerFillDivs();
+
     resizeAll();
 });
 
@@ -489,11 +493,7 @@ $(".pane-closer").click(function(){
         $("#leftMinimized").show();
     }else if(parentId=="subFillDivRight"){    
         $("#rightMinimized").show();
-    }else if(parentId=="subFillDivMiddle"){    
-        $("#middleMinimized").show();
     }
-    
-    resizeViewerFillDivs();
     resizeAll();
 })
 
@@ -519,7 +519,6 @@ function resizeView(toggler) {
 
     // the console tag should call the resize method here
     if($(toggler).attr('id')=='consoleToggle'){
-        resizeViewerFillDivs();
         resizeAll();
         showConsole = !showConsole;
     }
@@ -540,15 +539,12 @@ function defaultConsole(){
 
 // resize all columns and inner-columns to make fill-divs fill the column
 function resizeAll(){
+    resizeViewerFillDivs();
     resizeFullDivs("#innerFluidLeftCol");
     resizeFullDivs("#innerFluidRightCol");
     resizeFullDivs("#subFillDivLeft");
     resizeFullDivs("#subFillDivRight");
-    resizeFullDivs("#subFillDivMiddle");
-    //resizeFullDivs("#leftMinimized");
-    $("#panzoomLeft").panzoom("resetDimensions");
-    $("#panzoomRight").panzoom("resetDimensions");
-    $("#panzoomMiddle").panzoom("resetDimensions");
+    resizePreview();
 }
 
 // resize the elements within the target div
@@ -582,26 +578,25 @@ $("#stereoButton").click(function(){
         showStereoViewer();
         $(".results-right").show();
         if($("#analysisModeSelect").val()=='tracking'&&showStereoPane==1){
+            resetPlotlyViewer('left',true);
+            resetPlotlyViewer('right',true);
             $(".non-tracklib-tools").hide();
             $(".tracklib-tools").show();
         }else{
             $(".non-tracklib-tools").show();
             $(".tracklib-tools").hide();
         }
-        checkValidInput();
-//    }else if(oldText=='run stereo'){ // turn off trinocular for now
-//        showTrinocViewer();
-//        checkValidInput();        
     }else{
         show2DViewer();
         if($("#analysisModeSelect").val()=='tracking')
             $(".results-right").hide();
         $(".non-tracklib-tools").show();
         $(".tracklib-tools").hide();
-        checkValidInput();
+        $(".results-right").hide();
     }
-    drawROIs();
-    resizeAll();
+    checkValidInput();
+//    showBestFitLine();
+//    resizeAll();
 });
 
 function resizeViewerFillDivs(){
@@ -619,8 +614,7 @@ function resizeViewerFillDivs(){
             }
         }
     });
-    var numMinimized = numTotalDivs - numActiveDivs;
-    
+    var numMinimized = numTotalDivs - numActiveDivs;    
     if(viewersStacked){
         var newHeight = Math.floor((totalHeight - numMinimized*32-1)/numActiveDivs);
         $("#viewerFillDiv" + '> div').each(function() {
@@ -662,7 +656,6 @@ function stackViews(){
         }
     });
     viewersStacked = true;
-    resizeViewerFillDivs();
     resizeAll();
 }
 function unstackViews(){
@@ -677,16 +670,13 @@ function unstackViews(){
         }
     });
     viewersStacked = false;
-    resizeViewerFillDivs();
     resizeAll();
 }
 
 function show2DViewer(){
     $('#subFillDivLeft').css('display','inline-block');
     $('#subFillDivRight').css('display','none');
-    $('#subFillDivMiddle').css('display','none');
     $("#rightMinimized").hide();
-    $("#middleMinimized").hide();
     $("#leftMinimized").hide();
     $("#leftPaneToggle").hide();
     $('#subFillDivLeft').css('width','100%');
@@ -704,39 +694,13 @@ function show2DViewer(){
     $('#runLi span').text('run 2d');
     $("#stereoParams").hide();
     $('#x1x2').text('x 1');
-    deactivateEpipolar();
+    //deactivateEpipolar();
     $(".tracklib-tools").hide();
-}
-
-function showTrinocViewer(){
-    $('#subFillDivLeft').css('display','inline-block');
-    $('#subFillDivMiddle').css('display','inline-block');
-    $('#subFillDivRight').css('display','inline-block');
-    $("#rightMinimized").hide();
-    $("#middleMinimized").hide();
-    $("#leftMinimized").hide();
-    $("#leftPaneToggle").show();
-    $('#subFillDivRight').css('width','33%');
-    $('#subFillDivMiddle').css('width','34%');
-    $('#subFillDivLeft').css('width','33%');
-    $(".nav-two-cam").css('display','block');
-    $(".nav-three-cam").css('display','block');
-    $("#stackButton").css('display','block');
-    $(".nav-one-cam").hide();
-    showStereoPane = 2;
-    if(viewersStacked){
-        stackViews();
-    }
-    else {
-        unstackViews();
-    }
-    $("#stereoParams").show();
-    $('#runLi span').text('run trinoc');
-    $('#x1x2').text('x 3');
+    resizeAll();
+    checkValidInput();
 }
 
 function showStereoViewer(){
-    $('#subFillDivMiddle').css('display','none');
     $('#subFillDivLeft').css('display','inline-block');
     $('#subFillDivRight').css('display','inline-block');
     $('#subFillDivRight').css('width','50%');
@@ -744,25 +708,48 @@ function showStereoViewer(){
     $(".nav-one-cam").hide();
     $(".cal-options").show();
     $("#rightMinimized").hide();
-    $("#middleMinimized").hide();
     $("#leftMinimized").hide();
     $("#leftPaneToggle").show();
     $(".nav-two-cam").css('display','block');
     $(".nav-three-cam").css('display','none');
     $("#stackButton").css('display','block');
     showStereoPane = 1;
-    if(viewersStacked){
-        stackViews();
-    }
-    else {
-        unstackViews();
-    }
+//    if(viewersStacked){
+//        stackViews();
+//    }
+//    else {
+//        unstackViews();
+//    }
     $("#stereoParams").show();
     $('#runLi span').text('run stereo');
     $('#x1x2').text('x 2');
+    drawBestFitLine();
+    resizeAll();
+    checkValidInput();
+}
+
+function updateFrameScrollerRange(){
+    if($("#fileSelectMode").val()=="list"){
+        $("#startPreviewSpan").text("ref");
+        $("#endPreviewSpan").text(defImagePathsLeft.length);
+        $("#currentPreviewSpan").text("0");
+        $("#frameScroller").attr('max',defImagePathsLeft.length);
+        $("#frameScroller").attr('min',0);
+        $("#frameScroller").val(0);
+    }else if($("#fileSelectMode").val() == "sequence"){
+        $("#startPreviewSpan").text($("#startIndex").val());
+        $("#endPreviewSpan").text($("#endIndex").val());
+        $("#currentPreviewSpan").text($("#startIndex").val());
+        $("#frameScroller").attr('max',$("#endIndex").val());
+        $("#frameScroller").attr('min',$("#startIndex").val());
+        $("#frameScroller").val($("#startIndex").val());
+        $("#frameScroller").attr('step',$("#skipIndex").val());
+    }
 }
 
 $("#analysisModeSelect").on('change',function() {
+    $("#showRepSubsetCheck").prop("checked",false);
+    $("#bestFitCheck").prop("checked",false);
     if($(this).val()=="subset"){
         $(".full-field").show();
         $(".full-field-global").show();
@@ -772,6 +759,7 @@ $("#analysisModeSelect").on('change',function() {
         $(".results-right").show();
         $(".tracklib-tools").hide();
         $(".tracking").hide();
+//        drawRepresentativeSubset();
         //$("#subsetParams").show();
         //$("#trackingParams").hide();
         //$("#sssigPreview").show();
@@ -783,17 +771,19 @@ $("#analysisModeSelect").on('change',function() {
         $(".global").hide();
         $(".tracking").show();
         // force 2D
-        resetLivePlots();
         if(!diceTrackLibOn){
             show2DViewer();
             $(".non-tracklib-tools").show();
             $(".tracklib-tools").hide();
+            $(".results-right").hide();
         }else{
             if(showStereoPane==1){
                 $(".results-right").show();
                 $(".non-tracklib-tools").hide();
                 $(".tracklib-tools").show();
-                $("#fileSelectMode").val("cine").change()
+                if($("#fileSelectMode").val()!="cine"){
+                    $("#fileSelectMode").val("cine").change()
+                }
             }
             else{
                 $(".results-right").hide();
@@ -815,11 +805,16 @@ $("#analysisModeSelect").on('change',function() {
         $(".tracklib-tools").hide();
         $(".tracking").hide();
         // force 2D
-        //resetLivePlots();
         show2DViewer();
     }
-    drawROIs();
+    if(!($(this).val()=="tracking"&&showStereoPane==1&&diceTrackLibOn)){
+        // if this is tracklib, the reset is called by the fileselectmode change
+        resetPlotlyViewer('left',true);
+        resetPlotlyViewer('right',true);
+    }
+    drawBestFitLine();
     resizeAll();
+    checkValidInput();
 });
 
 $("#fileSelectMode").on('change',function (){
@@ -839,6 +834,7 @@ $("#fileSelectMode").on('change',function (){
         $(".nav-cine").css('display','block');
     }
     resetWorkingDirectory();
+    checkValidInput();
 });
 
 $("#initSelect").on('change',function (){
@@ -852,9 +848,7 @@ $("#initSelect").on('change',function (){
 $("#subsetSize").on('input',function(){
     var ss_size =  $(this).val();
     $("#subsetSizeLabel").text(ss_size);
-    if(SVG.get('subsetBox'))
-        SVG.get('subsetBox').size(ss_size,ss_size);
-    //drawROIs();
+    drawRepresentativeSubset();
 });
 
 $("#sssigThresh").on('input',function(){
@@ -898,7 +892,6 @@ $("#binaryThreshConstant").on('input',function(){
     $("#binaryThreshConstantLabel").text($(this).val());
 });
 
-
 function saveStateFile() {
     fileName = homeDir;
     if(os.platform()=='win32'){
@@ -937,11 +930,11 @@ function saveStateFile() {
     else{
         content += 'var omitTextState = false;\n';
     }
-    if(paraviewMsg){
-        content += 'var paraviewMsgState = true;\n';
-    }else{
-        content += 'var paraviewMsgState = false;\n';
-    }
+//    if(paraviewMsg){
+//        content += 'var paraviewMsgState = true;\n';
+//    }else{
+//        content += 'var paraviewMsgState = false;\n';
+//    }
     if(typeof execPathOverride === 'undefined'){
     }else{
         if(execPathOverride!=''){
@@ -955,3 +948,4 @@ function saveStateFile() {
         consoleMsg('.dice.js file has been successfully saved');
     });
 }
+
