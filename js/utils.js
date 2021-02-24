@@ -34,7 +34,7 @@ function initialize_gui(load_existing){
     $(".global").hide();
     $(".cal-options").hide();
     //$("#trackingParams").hide();
-    $("#analysisModeSelect").val("subset");
+    $("#analysisModeSelect").val("subset").change();
 
     // hide the minimized bars for closed views
     $("#leftMinimized").hide();
@@ -301,6 +301,7 @@ $("#changeImageFolder").click(function(){
 function updateSequenceLabels(stats){
     $("#imagePrefix").val(stats.prefix);
     $("#imageSuffix").val(stats.suffix);
+    $("#refIndex").val(stats.startIndex);
     $("#startIndex").val(stats.startIndex);
     $("#endIndex").val(stats.endIndex);
     $("#skipIndex").val(stats.frameInterval);
@@ -582,6 +583,8 @@ $("#stereoButton").click(function(){
             resetPlotlyViewer('right',true);
             $(".non-tracklib-tools").hide();
             $(".tracklib-tools").show();
+            if($("#fileSelectMode").val()!="cine")
+                $("#fileSelectMode").val("cine").change();
         }else{
             $(".non-tracklib-tools").show();
             $(".tracklib-tools").hide();
@@ -731,11 +734,11 @@ function showStereoViewer(){
 function updateFrameScrollerRange(){
     if($("#fileSelectMode").val()=="list"){
         $("#startPreviewSpan").text("ref");
-        $("#endPreviewSpan").text(defImagePathsLeft.length);
-        $("#currentPreviewSpan").text("0");
-        $("#frameScroller").attr('max',defImagePathsLeft.length);
-        $("#frameScroller").attr('min',0);
-        $("#frameScroller").val(0);
+        $("#endPreviewSpan").text(defImagePathsLeft.length-1);
+        $("#currentPreviewSpan").text("ref");
+        $("#frameScroller").attr('max',defImagePathsLeft.length-1);
+        $("#frameScroller").attr('min',-1);
+        $("#frameScroller").val(-1);
     }else if($("#fileSelectMode").val() == "sequence"){
         $("#startPreviewSpan").text($("#startIndex").val());
         $("#endPreviewSpan").text($("#endIndex").val());
@@ -747,6 +750,20 @@ function updateFrameScrollerRange(){
     }
 }
 
+$("#trackDisplayModeSelect").on('change',function(){
+    if($("#analysisModeSelect").val()!="tracking"||showStereoPane!=1) return;
+    if($("#trackDisplayModeSelect").val()=="all-tracks"){
+        transparentPlotlyTraces('left','tracklibPreviewScatter','all','all');
+        transparentPlotlyTraces('right','tracklibPreviewScatter','all','all');
+    }else if($("#trackDisplayModeSelect").val()=="in-frame-only"){
+        transparentPlotlyTraces('left','tracklibPreviewScatter',$("#frameScroller").val(),'all');
+        transparentPlotlyTraces('right','tracklibPreviewScatter',$("#frameScroller").val(),'all');
+    }else{ // by-id
+        transparentPlotlyTraces('left','tracklibPreviewScatter','all',$('#trackGID').val());
+        transparentPlotlyTraces('right','tracklibPreviewScatter','all',$('#trackGID').val());
+    }
+});
+
 $("#analysisModeSelect").on('change',function() {
     $("#showRepSubsetCheck").prop("checked",false);
     $("#bestFitCheck").prop("checked",false);
@@ -755,9 +772,11 @@ $("#analysisModeSelect").on('change',function() {
         $(".full-field-global").show();
         $(".full-field-and-tracking").show();
         $(".global").hide();
+        console.log('SHOWING NON_TRACKLIB');
         $(".non-tracklib-tools").show();
         $(".results-right").show();
         $(".tracklib-tools").hide();
+        console.log('HIDING TRACKING');
         $(".tracking").hide();
 //        drawRepresentativeSubset();
         //$("#subsetParams").show();
@@ -781,9 +800,8 @@ $("#analysisModeSelect").on('change',function() {
                 $(".results-right").show();
                 $(".non-tracklib-tools").hide();
                 $(".tracklib-tools").show();
-                if($("#fileSelectMode").val()!="cine"){
-                    $("#fileSelectMode").val("cine").change()
-                }
+                if($("#fileSelectMode").val()!="cine")
+                    $("#fileSelectMode").val("cine").change();
             }
             else{
                 $(".results-right").hide();
@@ -791,10 +809,6 @@ $("#analysisModeSelect").on('change',function() {
                 $(".tracklib-tools").hide();
             }
         }
-        //$("#subsetParams").hide();
-        //$("#trackingParams").show();
-        //$("#sssigPreview").hide();
-        //clearDrawnROIs();
     }
     else if($(this).val()=="global"){
         $(".full-field").hide();
@@ -814,6 +828,7 @@ $("#analysisModeSelect").on('change',function() {
     }
     drawBestFitLine();
     resizeAll();
+    populateContourFields();
     checkValidInput();
 });
 
@@ -824,6 +839,7 @@ $("#fileSelectMode").on('change',function (){
         $(".nav-cine").css('display','none');
     }
     else if($(this).val()=="list"){
+        $("#skipIndex").val(1);
         $(".nav-sequence").css('display','none');
         $(".nav-list").css('display','block');
         $(".nav-cine").css('display','none');

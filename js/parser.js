@@ -34,14 +34,14 @@ function parseSubsetFile(xml){
             }else{ // file doesn't exist
                 readLivePlotFile();
                 readBestFitFile();
-                checkSubsetJsonFileExists();
+                checkContourJsonFileExists();
             }
         }); // end stat subset file
     }  // end has subset_file
     else{
         readLivePlotFile();
         readBestFitFile();
-        checkSubsetJsonFileExists();
+        checkContourJsonFileExists();
     }
 }
 
@@ -108,15 +108,11 @@ function impl_input_xml_file(xml){
         else show2DViewer();
         $("#fileSelectMode").change();
         full_name = image_folder + cine_file;
-        getFileObject(full_name, function (fileObject) {
-            callCineStatExec(fileObject,0,function(){update_cine_indices(xml); parseSubsetFile(xml);});
-        });
+        callCineStatExec(full_name,0,function(){update_cine_indices(xml); parseSubsetFile(xml);});
         if(stereo_cine_file){
             console.log('reading stereo cine file: ' + image_folder + stereo_cine_file);
             stereo_full_name = image_folder + stereo_cine_file;
-            getFileObject(stereo_full_name, function (fileObject) {
-                callCineStatExec(fileObject,1);
-            });
+            callCineStatExec(stereo_full_name,1);
         }
     }else{
         // list
@@ -287,6 +283,10 @@ function readBestFitFile(){
 }
 
 function readLivePlotFile(){
+    // for tracking mode, the live plot files are the results files themselves:
+    if($("#analysisModeSelect").val()=='tracking'&&showStereoPaneState==0){
+        showLivePlots();
+    }
     // see if there is a "live_plot.dat" file in the folder
     var LPFileName = fullPath('','live_plot.dat');
     var livePlotPtsX = [];
@@ -333,7 +333,7 @@ function readLivePlotFile(){
 // note: the read_susbset_file does not read the
 // subset_id for a conformal subset, instead it assumes that the
 // subsets are always saved in order from 0 to n.
-// note: obstructed regions are copied in all subsets, as such only the
+// note: obstructed regions are copied in all subsets, as such only the FIXME is this still the case?
 // obstructed regions from the first subeset are loaded
 function readSubsetFile(data){
     hierarchy = [];
@@ -361,6 +361,7 @@ function readSubsetFile(data){
                         // if this is a tracking analysis, this could potentially be skipped since this info is stored in the shape centroids
                         subsetLocations.x.push(num_line[0]);
                         subsetLocations.y.push(num_line[1]);
+                        blockingSubsets.push([]);
                     }
                     line+=vertex;
                 }
@@ -392,17 +393,24 @@ function readSubsetFile(data){
                         var shape = pointsToPathShape(points,'excluded_' + excludedId.toString());
                         shapes.push(shape);
                     }
-//                    else if((hierarchy[hierarchy.length-3].toUpperCase()=='OBSTRUCTED')&&currentROIIndex==1){
-//                        if(currentObstructedIndex!=0){
-//                            obstructedDefsX.push([]);
-//                            obstructedDefsY.push([]);
-//                        }
-//                        for(var i=0;i<vertex_x.length;i++){
-//                            obstructedDefsX[obstructedDefsX.length-1].push(vertex_x[i]);
-//                            obstructedDefsY[obstructedDefsY.length-1].push(vertex_y[i]);
-//                        }
-//                        currentObstructedIndex += 1;
-//                    }
+                    else if(hierarchy[hierarchy.length-3].toUpperCase()=='OBSTRUCTED'){
+                        var obstructedId = currentROI - 1;
+                        var shape = pointsToPathShape(points,'obstructed_0'); // all obstructions get associated with subset 0
+                        shapes.push(shape);
+                    }
+                }
+                if(split_line[1].toUpperCase()=='BLOCKING_SUBSETS'){
+                    if(subsetLocations.x.length==0) alert('invalid subset definitions file');
+                    var blockingId = 0;
+                    var blockingSubsetList = [];
+                    while(blockingId < max_vertices){
+                        num_line = lines[line+1+blockingId].match(/\S+/g).map(Number);
+                        if(isNaN(num_line[0])) break;
+                        blockingId++;
+                        blockingSubsetList.push(num_line[0]);
+                    }
+                    line+=blockingId;
+                    blockingSubsets[currentROI-1] = blockingSubsetList;
                 }
             }
             else if(split_line[0]=='end' && hierarchy.length > 0){
@@ -410,6 +418,7 @@ function readSubsetFile(data){
             }
         } // end split_line
     } // end lines
+    //console.log(blockingSubsets);
     // assuming here that the plotly div already exists
     var update = {shapes: shapes};
     Plotly.relayout(document.getElementById("plotlyViewerLeft"),update);
@@ -431,19 +440,20 @@ function readSubsetFile(data){
     }
     readLivePlotFile();
     readBestFitFile();
-    checkSubsetJsonFileExists();
+    checkContourJsonFileExists();
 }
 
 function update_cine_indices(xml){
     cine_start_index = xml_get(xml,"cine_start_index");
-    if(cine_start_index!='undefined') $("#cineStartIndex").val(cine_start_index);
+    if(cine_start_index && cine_start_index!='undefined') {$("#cineStartIndex").val(cine_start_index);}
     cine_end_index = xml_get(xml,"cine_end_index");
-    if(cine_end_index!='undefined') $("#cineEndIndex").val(cine_end_index);
+    if(cine_end_index && cine_end_index!='undefined') {$("#cineEndIndex").val(cine_end_index);}
     cine_skip_index = xml_get(xml,"cine_skip_index");
-    if(cine_skip_index!='undefined') $("#cineSkipIndex").val(cine_skip_index);
+    if(cine_skip_index && cine_skip_index!='undefined') {$("#cineSkipIndex").val(cine_skip_index);}
     cine_ref_index = xml_get(xml,"cine_ref_index");
-    if(cine_ref_index!='undefined') $("#cineRefIndex").val(cine_ref_index);
+    if(cine_ref_index && cine_ref_index!='undefined') {$("#cineRefIndex").val(cine_ref_index);}
     $("#frameScroller").val(cine_ref_index);
+    $("#currentPreviewSpan").text(cine_ref_index);
 }
 
 function parse_params_xml_file(filename){
@@ -477,7 +487,7 @@ function impl_params_xml_file(xml){
     // set the sssig threshold
     sssig = xml_get(xml,"sssig_threshold");
     console.log('sssig_threshold: ' + sssig);
-    if(sssig!='undefined'){
+    if(sssig && sssig!='undefined'){
         $("#sssigThresh").val(sssig);
         $("#sssigLabel").text(sssig);
     }
@@ -708,14 +718,14 @@ function pointsToPathShape(points,name){
     shape.path = path;
     // color the shape:
     if($("#analysisModeSelect").val()=="subset"||$("#analysisModeSelect").val()=="global"){
-        shape.line = {color: 'cyan', width:4}
-        shape.fillcolor = 'cyan'
-        shape.opacity = 0.4;
+        shape.line = {color: 'yellow', width:3, dash: 'dash'}
+        shape.fillcolor = 'none'
+        shape.opacity = 0.7;
     }
     else{
-        shape.line = {color: 'purple', width:4}
+        shape.line = {color: 'purple', width:3}
         shape.fillcolor = 'green';
-        shape.opacity =0.4;
+        shape.opacity =0.3;
     }
     shape.editable = true;
     if(name){
@@ -723,6 +733,11 @@ function pointsToPathShape(points,name){
         if(name.includes('excluded')){
             shape.line = {color: 'red'};
             shape.fillcolor = 'red';
+            shape.opacity = 0.2;
+        }
+        else if(name.includes('obstructed')){
+            shape.line = {color: 'cyan'};
+            shape.fillcolor = 'cyan';
             shape.opacity = 0.2;
         }
     }

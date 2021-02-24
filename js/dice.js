@@ -60,7 +60,7 @@ function showLivePlots(){
     localStorage.setItem("workingDirectory",workingDirectory);
     if($("#analysisModeSelect").val()=="tracking"){
         if(diceTrackLibOn && showStereoPane==1){
-            // TODO enable live plots for tracklib
+            // enable live plots for tracklib
             $("#plotsButton").trigger( "click" );
             //livePlotTracklibRepeat();
         }else{
@@ -200,7 +200,7 @@ function callDICeExec(resolution,ss_locs) {
     // nuke the old line plot and point live plot files
     fs.readdirSync(workingDirectory).forEach(file => {
         // check if the file matches the syntax                                                                       
-        if(file.indexOf('live_plot_line_step_') !== -1 || file.indexOf('live_plot_pt_') !== -1){
+        if(file.indexOf('live_plot_line_frame_') !== -1 || file.indexOf('live_plot_pt_') !== -1){
             fs.unlink(fullPath('',file), (err) => {
                 if (err) throw err;
                 console.log('successfully deleted old line plot file'+file);
@@ -296,23 +296,22 @@ function updateCineDisplayImage(fileName,index,dest,cb){
     updatePreviewImage({srcPath:decoratedFile,dest:dest},cb);
 }
 
-function callCineStatExec(file,mode,callback) {
+function callCineStatExec(path,mode,callback) {
 
     callback = callback || $.noop;
     var child_process = require('child_process');
     var readline      = require('readline');
     var proc;
 
-    var fileName = file.path;
-    console.log('loading cine file: ' + file.path)
-    fs.stat(fileName, function(err, stat) {
+    console.log('loading cine file: ' + path)
+    fs.stat(path, function(err, stat) {
         if(err != null) {
-            alert("could not find .cine file: " + fileName);
+            alert("could not find .cine file: " + path);
             return false;
         }
         else{
-            console.log("getting frame range of cine file: " + fileName);
-            var proc = child_process.spawn(execCineStatPath, [fileName],{cwd:workingDirectory});//,maxBuffer:1024*1024})
+            console.log("getting frame range of cine file: " + path);
+            var proc = child_process.spawn(execCineStatPath, [path],{cwd:workingDirectory});//,maxBuffer:1024*1024})
         }
         readline.createInterface({
             input     : proc.stdout,
@@ -350,8 +349,17 @@ function callCineStatExec(file,mode,callback) {
                              // check that the two cine files have valid frame ranges
                              if($("#startPreviewSpan").text()!=""||$("#endPreviewSpan").text()!="")
                                  if($("#startPreviewSpan").text()!=stats[1]||$("#endPreviewSpan").text()!=stats[2]){
-                                     alert("Error, all .cine files need to have matching frame ranges");
-                                     return false;
+                                     if(mode==0){
+                                         // unload the stereo image
+                                         cinePathRight = "undefined";
+                                         resetPlotlyViewer('right');
+                                         $("#cineRightPreview span").text("");
+                                     }else{
+                                         // unload the stereo image
+                                         cinePathLeft = "undefined";
+                                         resetPlotlyViewer('left');
+                                         $("#cineLeftPreview span").text("");
+                                     }
                                  }
                              cineFirstFrame = stats[1];
                              $("#startPreviewSpan").text(stats[1]);
@@ -359,24 +367,24 @@ function callCineStatExec(file,mode,callback) {
                              $("#endPreviewSpan").text(stats[2]);
                              $("#cineGoToIndex").val(stats[1]);
                              $("#cineFrameRatePreviewSpan").text(stats[3]);
-                             if(mode==0){
+//                             if(mode==0){
                                  $("#cineRefIndex").val(stats[1]);
                                  $("#cineStartIndex").val(stats[1]);
                                  $("#cineEndIndex").val(stats[2]);
                                  $("#frameScroller").attr('max',stats[2]);
                                  $("#frameScroller").attr('min',stats[1]);
                                  $("#frameScroller").val(stats[1]);
-                             }
+//                             }
                              // convert the cine to tiff
                              // always start with the ref index for the initial display
                              if(mode==0){
-                                 cinePathLeft = file.path;
-                                 $("#cineLeftPreview span").text(file.name);
-                                 updateCineDisplayImage(fileName,stats[1],'left',callback); // only execute the callback after the left image is updated
+                                 cinePathLeft = path;
+                                 $("#cineLeftPreview span").text(path.replace(/^.*[\\\/]/, ''));
+                                 updateCineDisplayImage(path,stats[1],'left',callback); // only execute the callback after the left image is updated
                              }else if(mode==1){
-                                 cinePathRight = file.path;
-                                 $("#cineRightPreview span").text(file.name);
-                                 updateCineDisplayImage(fileName,stats[1],'right');
+                                 cinePathRight = path;
+                                 $("#cineRightPreview span").text(path.replace(/^.*[\\\/]/, ''));
+                                 updateCineDisplayImage(path,stats[1],'right');
                              }
                              deleteHiddenFiles('keypoints');
                              return true;
@@ -563,8 +571,11 @@ function updateTracklibDisplayImages(index,loadData=true){
     proc.on('close', (code) => {
         console.log(`OpenCVServer exited with code ${code}`);
         if(code==0){
-            if(isResultsMode()&&loadData)
+            if(isResultsMode()&&loadData){
+                deletePlotlyTraces('left','Filtered');
+                deletePlotlyTraces('right','Filtered');
                 loadPlotlyJsonOutput('results');
+            }
             else if(loadData){
                 loadPlotlyJsonOutput('preview');
                 loadPlotlyFilteredJsonOutput();
@@ -658,6 +669,8 @@ function postExecTasks(){
     // if this is a mono tracking run, load the results files into memory in case the user wants to view the tracked results
     if($("#analysisModeSelect").val()=="tracking"){
         if(showStereoPane==1){
+            deletePlotlyTraces('left','Filtered');
+            deletePlotlyTraces('right','Filtered');
             loadPlotlyJsonOutput('results');
             checkHasOutput();
             $("#resultsButton").trigger( "click" );
@@ -666,6 +679,7 @@ function postExecTasks(){
         }
     }
     displayResults();
+    showLivePlots();
 }
 
 function startProgress (){
@@ -845,7 +859,7 @@ function writeBestFitFile() {
 }
 
 function writeLivePlotsFile() {
-    if($("#analysisModeSelect").val()!="subset") return;
+    if($("#analysisModeSelect").val()=="tracking") return;
     var data = document.getElementById("plotlyViewerLeft").data;
     if(!data) return;
     var livePlotPtsTraceId = data.findIndex(obj => { 
@@ -1064,6 +1078,9 @@ function writeParamsFile(only_write,resolution,ss_locs) {
             }else{
                 content += '<Parameter name="global_element_type" type="string" value="TRI6" />\n';
             }
+            content += '<ParameterList name="post_process_plotly_contour">\n';
+            content += '<Parameter name="plotly_contour_grid_step" type="int" value=" ' + $("#meshSize").val() + '" />\n';
+            content += '</ParameterList>\n';
         }else{ // assume tracking at this point
             content += '<Parameter name="use_tracking_default_params" type="bool" value="true" />\n';
             content += '<Parameter name="normalize_gamma_with_active_pixels" type="bool" value="true" />\n';
@@ -1143,6 +1160,8 @@ function writeSubsetFile(only_write,resolution,ss_locs){
     var numROIs = pathShapes.length;
     var excludedShapes = getPlotlyShapes('excluded');
     var numExcluded = excludedShapes.length;
+    var obstructedShapes = getPlotlyShapes('obstructed');
+    var numObstructed = obstructedShapes.length;
     
     var content = '';
     content += '# Auto generated subset file from DICe GUI\n';
@@ -1179,9 +1198,6 @@ function writeSubsetFile(only_write,resolution,ss_locs){
             content += '    end polygon\n';
         }
         content += '  end boundary\n';
-        
-        // TODO deal with obstructued (if we decide to continue supporting this
-
         if(numExcluded>0){
             content += '  begin excluded\n';
             for(var i = 0; i < numExcluded; i++) {
@@ -1197,7 +1213,6 @@ function writeSubsetFile(only_write,resolution,ss_locs){
             content += '  end excluded\n';
         }
         content += 'end region_of_interest\n';
-        
     }else if($("#analysisModeSelect").val()=="tracking"&&numROIs>0){ // tracking mode
 
         // add a polygon for each ROI
@@ -1214,9 +1229,14 @@ function writeSubsetFile(only_write,resolution,ss_locs){
             content += '      end vertices\n';
             content += '    end polygon\n';
             content += '  end boundary\n';
-            
-            // TODO deal with obstructed
-            
+            if(blockingSubsets.length>i){
+                if(blockingSubsets[i].length>0){
+                    content += '  begin blocking_subsets\n';
+                    for(var j=0;j<blockingSubsets[i].length;++j)
+                        content += '    ' + blockingSubsets[i][j]  + '\n';
+                    content += '  end blocking_subsets\n';
+                }
+            }
             // excluded
             var hasExcluded = false;
             for(var j = 0; j < numExcluded; j++) {
@@ -1242,6 +1262,32 @@ function writeSubsetFile(only_write,resolution,ss_locs){
             }
             if(hasExcluded){
                 content += '  end excluded\n';
+            }
+            // obstructed
+            var hasObstructed = false;
+            for(var j = 0; j < numObstructed; j++) {
+                var obstructedId = parseInt(obstructedShapes[j].name.split('_').pop());
+                if(obstructedId == i)
+                    hasObstructed = true;
+            }
+            if(hasObstructed){
+                content += '  begin obstructed\n';
+            }
+            for(var j = 0; j < numObstructed; j++) {
+                var obstructedId = parseInt(obstructedShapes[j].name.split('_').pop());
+                if(obstructedId == i){
+                    content += '    begin polygon\n'; 
+                    content += '      begin vertices\n';
+                    var points = pathShapeToPoints(obstructedShapes[j]);
+                    for(var k=0;k<points.x.length;k++){
+                        content += '        ' +  points.x[k] + ' ' + points.y[k] + '\n';
+                    }
+                    content += '      end vertices\n';
+                    content += '    end polygon\n';
+                }
+            }
+            if(hasObstructed){
+                content += '  end obstructed\n';
             }
             content += 'end conformal_subset\n';
         }
@@ -1462,8 +1508,9 @@ function showContourPlot(cb){
             // copy the selected field to the z array
             fig.data[0].z = fig.data[0][fieldName];
             for(var i=0;i<fig.data[0].z.length;++i)
-                if(fig.data[0].STATUS_FLAG[i] < 0.0)
-                    fig.data[0].z[i] = null;
+                if(fig.data[0].STATUS_FLAG)
+                    if(fig.data[0].STATUS_FLAG[i] < 0.0)
+                        fig.data[0].z[i] = null;
             fig.data[0].x = fig.data[0]['COORDINATE_X'];
             fig.data[0].y = fig.data[0]['COORDINATE_Y'];
             updatePlotlyData('left',fig.data,cb);
@@ -1490,8 +1537,8 @@ function showContourPlot(cb){
 
 function getContourJsonFileName(leastSquares = false){
     var frameId = $("#frameScroller").val();
-    if($("#fileSelectMode").val()=="list")
-        frameId -= 1; // for sequence and list, the zeroeth index is the reference image so need to decrement by 1
+    //if($("#fileSelectMode").val()=="list")
+    //    frameId -= 1; // for sequence and list, the zeroeth index is the reference image so need to decrement by 1
     // check if the file exists for this frameID, if not return
     if(leastSquares) return fullPath('.dice','.results_2d_ls_' + frameId + '.json');
     else return fullPath('.dice','.results_2d_' + frameId + '.json');
@@ -1499,21 +1546,28 @@ function getContourJsonFileName(leastSquares = false){
 
 function populateContourFields(){
     // TODO make this switch on analysis type
+    $("#contourFieldSelect").empty();
     $("#contourFieldSelect").append(new Option('COORDINATE_X','COORDINATE_X'));
     $("#contourFieldSelect").append(new Option('COORDINATE_Y','COORDINATE_Y'));
     $("#contourFieldSelect").append(new Option('DISPLACEMENT_X','DISPLACEMENT_X'));
     $("#contourFieldSelect").append(new Option('DISPLACEMENT_Y','DISPLACEMENT_Y'));
-    $("#contourFieldSelect").append(new Option('SIGMA','SIGMA'));
-    $("#contourFieldSelect").append(new Option('GAMMA','GAMMA'));
-    $("#contourFieldSelect").append(new Option('BETA','BETA'));
-    $("#contourFieldSelect").append(new Option('STATUS_FLAG','STATUS_FLAG'));
-    $("#contourFieldSelect").append(new Option('UNCERTAINTY','UNCERTAINTY'));
-    $("#contourFieldSelect").append(new Option('VSG_STRAIN_XX','VSG_STRAIN_XX'));
-    $("#contourFieldSelect").append(new Option('VSG_STRAIN_YY','VSG_STRAIN_YY'));
-    $("#contourFieldSelect").append(new Option('VSG_STRAIN_XY','VSG_STRAIN_XY'));
+    if($("#analysisModeSelect").val()=="subset"){
+        $("#contourFieldSelect").append(new Option('SIGMA','SIGMA'));
+        $("#contourFieldSelect").append(new Option('GAMMA','GAMMA'));
+        $("#contourFieldSelect").append(new Option('BETA','BETA'));
+        $("#contourFieldSelect").append(new Option('STATUS_FLAG','STATUS_FLAG'));
+        $("#contourFieldSelect").append(new Option('UNCERTAINTY','UNCERTAINTY'));
+        $("#contourFieldSelect").append(new Option('VSG_STRAIN_XX','VSG_STRAIN_XX'));
+        $("#contourFieldSelect").append(new Option('VSG_STRAIN_YY','VSG_STRAIN_YY'));
+        $("#contourFieldSelect").append(new Option('VSG_STRAIN_XY','VSG_STRAIN_XY'));
+    }else if($("#analysisModeSelect").val()=="global"){
+        $("#contourFieldSelect").append(new Option('GREEN_LAGRANGE_STRAIN_XX','GREEN_LAGRANGE_STRAIN_XX'));
+        $("#contourFieldSelect").append(new Option('GREEN_LAGRANGE_STRAIN_YY','GREEN_LAGRANGE_STRAIN_YY'));
+        $("#contourFieldSelect").append(new Option('GREEN_LAGRANGE_STRAIN_XY','GREEN_LAGRANGE_STRAIN_XY'));
+    }
 }
 
-function checkSubsetJsonFileExists(){
+function checkContourJsonFileExists(){
     var fileName = getContourJsonFileName(true);
     console.log('loadSubsetJsonFile(): ' + fileName);
     fs.stat(fileName, function(err, stat) {
@@ -1533,11 +1587,12 @@ function checkSubsetJsonFileExists(){
 }
 
 function displayResults(){
-    if($("#analysisModeSelect").val()=="subset"){
+    console.log('displayResults():');
+    if($("#analysisModeSelect").val()!="tracking"){
         if($("#fileSelectMode").val()=="list") // advance past the ref frame
-            $("#frameScroller").val(1).change();
+            $("#frameScroller").val(0).change();
         $("#showContourCheck").prop("checked",true).change();
-//        checkSubsetJsonFileExists();
+//        checkContourJsonFileExists();
     }
 }
 

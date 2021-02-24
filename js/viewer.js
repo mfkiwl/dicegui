@@ -230,8 +230,9 @@ $("#resultsButton").on("click",function () {
     $("#previewButton").addClass('toggle-title');
     $(this).removeClass('action-li');
     $(this).addClass('toggle-title-bold');
+    $("#previewWindow :input").attr("disabled", true);
+    $(".tracklib-preview-only").hide();
     $("#resultsWindow").show();
-    $("#previewWindow").hide();
     // reload the results file
     $("#showTrackingCheck").prop("checked",true);
     reloadCineImages($("#frameScroller").val());
@@ -243,7 +244,8 @@ $("#previewButton").on("click",function () {
     $("#resultsButton").addClass('toggle-title');
     $(this).removeClass('action-li');
     $(this).addClass('toggle-title-bold');
-    $("#previewWindow").show();
+    $("#previewWindow :input").attr("disabled", false);
+    $(".tracklib-preview-only").show();
     $("#resultsWindow").hide();
     $('#trackGID').val(0);
     reloadCineImages($("#frameScroller").val());
@@ -304,7 +306,7 @@ $("#leftCineInput").change(function (evt) {
 //            }
 //        } // end a right cine file exists
 //        else{
-            callCineStatExec(file,0);
+            callCineStatExec(file.path,0);
 //        }
     }
 });
@@ -317,7 +319,7 @@ $("#rightCineInput").change(function (evt) {
         file = tgt.files[0];
     if(file){
         // create a tiff image of the selected reference frame
-        callCineStatExec(file,1);
+        callCineStatExec(file.path,1);
     }
 });
 
@@ -332,7 +334,8 @@ function reloadCineImages(index,loadData=true){
     // for tracklib special filters can be applied over the images
     if($("#analysisModeSelect").val()=="tracking"&&showStereoPane==1&&($("#showSegmentationCheck")[0].checked||$("#showTrackingCheck")[0].checked)){  // signifies tracklib
             updateTracklibDisplayImages(offsetIndex,loadData);
-    }else{    // otherwise just diplay the raw frame
+            return;
+    }else if($("#analysisModeSelect").val()=="tracking"&&showStereoPane==1){    // otherwise just diplay the raw frame
         // remove any plots or display lines
         resetPlotlyViewer('left');
         resetPlotlyViewer('right');
@@ -343,6 +346,10 @@ function reloadCineImages(index,loadData=true){
         if(cinePathRight!="undefined")
             updateCineDisplayImage(cinePathRight,offsetIndex,'right');
     }
+    if(cinePathLeft!="undefined")
+        updateCineDisplayImage(cinePathLeft,offsetIndex,'left',function(){showDeformedROIs();});
+    if(cinePathRight!="undefined")
+        updateCineDisplayImage(cinePathRight,offsetIndex,'right');
 }
 
 
@@ -351,9 +358,26 @@ $("#cineRefIndex").change(function () {
     var refIndex = $("#cineRefIndex").val();
 });
 
+function selectHasValue(select, value) {
+    obj = document.getElementById(select);
+    if (obj !== null) {
+        return (obj.innerHTML.indexOf('value="' + value + '"') > -1);
+    } else {
+        return false;
+    }
+}
+
+function setScrollerText(val){
+    if($("#fileSelectMode").val()=="list" && val<0)
+        $("#currentPreviewSpan").text('ref');
+    else
+        $("#currentPreviewSpan").text(val);
+}
+
 $("#frameScroller").on('input', function () {
-    $("#currentPreviewSpan").text($(this).val());
+    setScrollerText($(this).val());
 }).change(function(){
+    setScrollerText($(this).val()); // call this again in case the value was set by a call to .val() which wouldn't fire the input event
     if($("#fileSelectMode").val()=="list"){
         $('#defImageListLeft li').each(function(i){
             $(this).removeClass('def-image-ul-selected');
@@ -361,7 +385,7 @@ $("#frameScroller").on('input', function () {
         $('#defImageListRight li').each(function(i){
             $(this).removeClass('def-image-ul-selected');
         });
-        if(Number($(this).val())==0){
+        if(Number($(this).val())<0){
             if(refImagePathLeft!="")
                 updatePreviewImage({srcPath:refImagePathLeft,dest:'left'});
             else{
@@ -373,15 +397,15 @@ $("#frameScroller").on('input', function () {
                 resetPlotlyViewer('right');
             }
         }else{
-            var index = $(this).val()-1;
-            if(defImagePathsLeft.length >= $(this).val()){
+            var index = $(this).val();
+            if(defImagePathsLeft.length > $(this).val()){
                 updatePreviewImage({srcPath:defImagePathsLeft[index].path,dest:'left'});
                 $("#defImageListLeft li:eq(" + index.toString() + ")").addClass("def-image-ul-selected");
             }
             else{
                 resetPlotlyViewer('left');
             }
-            if(defImagePathsRight.length >= $(this).val()){
+            if(defImagePathsRight.length > $(this).val()){
                 updatePreviewImage({srcPath:defImagePathsRight[index].path,dest:'right'});
                 $("#defImageListRight li:eq(" + index.toString() + ")").addClass("def-image-ul-selected");
             }
@@ -391,17 +415,23 @@ $("#frameScroller").on('input', function () {
         }
     }else if($("#fileSelectMode").val()=="sequence"){
         updateImageSequencePreview(true);
-    }
-    else if($("#fileSelectMode").val()=="cine"){
+    }else if($("#fileSelectMode").val()=="cine"){
         reloadCineImages($(this).val(),!isResultsMode());
     }
-    if($("#analysisModeSelect").val()=="subset"){
-        checkSubsetJsonFileExists();
+    if($("#analysisModeSelect").val()=="subset"||$("#analysisModeSelect").val()=="global"){
+        checkContourJsonFileExists();
     }
     // turn off live plot info if this is not the first frame
     toggleLivePlotVisibility($(this).val()==$(this).attr('min'));
-    $("#stepSelect").val($(this).val()).change();
+    if(selectHasValue("stepSelect",$(this).val())){
+        console.log('updating step select with val ' + $(this).val());
+        $("#stepSelect").val($(this).val()).change();
+    }else{
+        console.log('not updating step select since ' + $(this).val() + ' is not a valid option');
+    }
+    showDeformedROIs();
     removeSubsetPreview();
+    $("#trackDisplayModeSelect").trigger("change");
 });
 
 $("#cineGoToIndex").keypress(function(event) { 
@@ -583,3 +613,33 @@ $("#bestFitCheck").change(function() {
 $("#showRepSubsetCheck").change(function() {
     drawRepresentativeSubset();
 });
+
+function ShowDialogBox(title, content, btn1text, btn2text, cb1, cb2) {
+    cb1 = cb1 || $.noop;
+    cb2 = cb2 || $.noop;
+    $("#lblMessage").html(content);
+    $("#dialog").dialog({
+        resizable: false,
+        title: title,
+        modal: true,
+        width: '400px',
+        height: 'auto',
+        bgiframe: false,
+        buttons: [
+            {
+                text: btn1text,
+                click: function () {
+                    cb1();
+                    $("#dialog").dialog('close');
+                }
+            },
+            {
+                text: btn2text,
+                click: function () {
+                    cb2();
+                    $("#dialog").dialog('close');
+                }
+            }
+        ]
+    });
+}

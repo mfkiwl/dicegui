@@ -1,13 +1,13 @@
 function addTracklibFieldstoFieldSelect(cb){
     $("#livePlotFieldSelect").empty();
-    $("#livePlotFieldSelect").append(new Option('world coord x','x'));
-    $("#livePlotFieldSelect").append(new Option('world coord y','y'));
-    $("#livePlotFieldSelect").append(new Option('world coord z','z'));
-    $("#livePlotFieldSelect").append(new Option('area','area'));
-    $("#livePlotFieldSelect").append(new Option('gray','gray'));
-    $("#livePlotFieldSelect").append(new Option('Δx/frame','velX'));
-    $("#livePlotFieldSelect").append(new Option('Δy/frame','velY'));
-    $("#livePlotFieldSelect").append(new Option('Δz/frame','velZ'));
+    $("#livePlotFieldSelect").append(new Option('world coord x (world dim)','x'));
+    $("#livePlotFieldSelect").append(new Option('world coord y (world dim)','y'));
+    $("#livePlotFieldSelect").append(new Option('world coord z (world dim)','z'));
+    $("#livePlotFieldSelect").append(new Option('area (px)','area'));
+    $("#livePlotFieldSelect").append(new Option('gray (counts)','gray'));
+    $("#livePlotFieldSelect").append(new Option('Δx(world)/frame','velX'));
+    $("#livePlotFieldSelect").append(new Option('Δy(world)/frame','velY'));
+    $("#livePlotFieldSelect").append(new Option('Δz(world)/frame','velZ'));
     cb = cb || $.noop;
     cb();
 }
@@ -18,6 +18,7 @@ $("#trackGID").change(function() {
         $('#trackGID').val(0);
     }
     updateInspectors('left',-1);
+    $("#trackDisplayModeSelect").trigger("change");
 //    updateTracklib2dScatter();
 });
 
@@ -110,19 +111,19 @@ function updateTracklib3dScatter(data,camera,cb){
                 aspectmode: 'data',
                 xaxis: {
                     title: {
-                        text: 'X',
+                        text: 'world coord x',
                     },
                 },
                 yaxis: {
                     scaleanchor: 'x',
                     title: {
-                        text: 'Y',
+                        text: 'world coord y',
                     }
                 },
                 zaxis: {
                     scaleanchor: 'x',
                     title: {
-                        text: 'Z',
+                        text: 'world coord z',
                     }
                 },
                 camera: {
@@ -299,32 +300,6 @@ function setTrackingVisibility(){
         }
         Plotly.restyle(pvr,update,ids);
     }
-    var shapesUpdate = {};
-    if(pvl.layout){
-        if(pvl.layout.shapes){
-            for(var i=0;i<pvl.layout.shapes.length;++i){
-                if(pvl.layout.shapes[i].name.includes('trackLine')){
-                    var propString = 'shapes[' + i.toString() + '].visible';
-                    shapesUpdate[propString] = linesVisible;
-                }
-            }
-            if(Object.keys(shapesUpdate).length>0)
-                Plotly.relayout(pvl,shapesUpdate);
-        }
-    }
-    shapesUpdate = {};
-    if(pvr.layout){
-        if(pvr.layout.shapes){
-            for(var i=0;i<pvr.layout.shapes.length;++i){
-                if(pvr.layout.shapes[i].name.includes('trackLine')){
-                    var propString = 'shapes[' + i.toString() + '].visible';
-                    shapesUpdate[propString] = linesVisible;
-                }
-            }
-            if(Object.keys(shapesUpdate).length>0)
-                Plotly.relayout(pvr,shapesUpdate);
-        }
-    }
 }
 
 function updateInspectors(dest,index2d){//,stereoGlobalId,index3d){
@@ -408,16 +383,31 @@ function loadPlotlyJsonOutput(source){
         if(err == null) {
             Plotly.d3.json(fullPath('.dice','.' + source + '_left.json'), function(jsonErr, fig) {
                 if(jsonErr==null){
+                    if(fig.data)
+                        if(fig.data[0].x)
+                            if(fig.data[0].x.length==0)
+                                alert('Warning: Tracking results are empty in the LEFT image \n(this may indicate the segmentation \nparameters need to be adjusted\n or there is nothing to track in this frame)');
                     updatePreviewImage({srcPath:fullPath('',displayLeft),dest:'left'},function(){
                         clearDebugUtils();
                         replacePlotlyData('left',fig.data);
-                        addPreviewTracks('left');
+                        //addPreviewTracks('left');
                         setTrackingVisibility();
                     });
                     showLivePlots();
                 }else{
                     console.log(jsonErr);
                     alert('error: reading json file failed');
+                }
+            });
+            // add the tracks from json files
+            Plotly.d3.json(fullPath('.dice','.' + source + '_left_tracks.json'), function(jsonErr, fig) {
+                if(jsonErr==null){
+                    // add the track traces to the plot
+                    deletePlotlyTraces('left','Tracks');
+                    replacePlotlyData('left',fig.data);
+                }else{
+                    console.log(jsonErr);
+                    alert('error: reading json tracks file failed');
                 }
             });
             Plotly.d3.json(fullPath('.dice','.' + source + '_3d.json'), function(jsonErr, fig) {
@@ -427,7 +417,6 @@ function loadPlotlyJsonOutput(source){
                     });
                 }else{
                     console.log(jsonErr);
-                    //alert('error: reading 3d preview json file failed');
                     Plotly.purge(document.getElementById("livePlot3d"));
                     Plotly.purge(document.getElementById("livePlots"));
                 }
@@ -439,16 +428,31 @@ function loadPlotlyJsonOutput(source){
         if(err == null) {
             Plotly.d3.json(fullPath('.dice','.' + source + '_right.json'), function(jsonErr, fig) {
                 if(jsonErr==null){
+                    if(fig.data)
+                        if(fig.data[0].x)
+                            if(fig.data[0].x.length==0)
+                                alert('Warning: Tracking results are empty in the RIGHT image \n(this may indicate the segmentation \nparameters need to be adjusted\n or there is nothing to track in this frame)');
                     updatePreviewImage({srcPath:fullPath('',displayRight),dest:'right'},function(){
                         replacePlotlyData('right',fig.data);
-                        addPreviewTracks('right');
+                        //addPreviewTracks('right');
                         setTrackingVisibility();
                     });
                 }else{
                     alert('error: reading json file failed');
                     console.log(jsonErr);
                 }
-              });
+            });
+            // add the tracks from json files
+            Plotly.d3.json(fullPath('.dice','.' + source + '_right_tracks.json'), function(jsonErr, fig) {
+                if(jsonErr==null){
+                    // add the track traces to the plot
+                    deletePlotlyTraces('right','Tracks');
+                    replacePlotlyData('right',fig.data);
+                }else{
+                    console.log(jsonErr);
+                    alert('error: reading json tracks file failed');
+                }
+            });
         }else{
         }
     });
@@ -476,43 +480,43 @@ function loadPlotlyFilteredJsonOutput(){
 }
 
 
-function addPreviewTracks(dest){
-    var div = destToPlotlyDiv(dest);
-    var data = div.data;
-    var layout = div.layout;
-    if(!data||!layout) return;
-    
-    if($('#analysisModeSelect').val()!="tracking"||showStereoPane!=1) return;
-    var scatterTraceId = data.findIndex(obj => { 
-        return obj.name === "tracklibPreviewScatter";
-    });
-    if(scatterTraceId<0) return;
-    var px = data[scatterTraceId].x;
-    var py = data[scatterTraceId].y;
-    var fwdNeighId = data[scatterTraceId].fwdNeighId;
-    // draw lines between all the points that have neighbors
-    // remove all old track_lines
-    if(!layout.shapes) layout.shapes = [];
-    var i = layout.shapes.length;
-    while (i--) {
-        if(layout.shapes[i].name)
-            if(layout.shapes[i].name==='trackLine')
-                layout.shapes.splice(i,1);
-    }
-    for(var i=0;i<px.length;++i){
-        if(fwdNeighId[i]<0) continue;
-        var track_line = {
-                name: 'trackLine',
-                type:'line',
-                x0: px[i],
-                x1: px[fwdNeighId[i]],
-                y0: py[i],
-                y1: py[fwdNeighId[i]],
-                line: {color: 'yellow', width:2},
-                opacity: 0.8,
-                editable: false,
-                visible: true
-        };
-        layout.shapes.push(track_line);
-    }
-}
+//function addPreviewTracks(dest){
+//    var div = destToPlotlyDiv(dest);
+//    var data = div.data;
+//    var layout = div.layout;
+//    if(!data||!layout) return;
+//    
+//    if($('#analysisModeSelect').val()!="tracking"||showStereoPane!=1) return;
+//    var scatterTraceId = data.findIndex(obj => { 
+//        return obj.name === "tracklibPreviewScatter";
+//    });
+//    if(scatterTraceId<0) return;
+//    var px = data[scatterTraceId].x;
+//    var py = data[scatterTraceId].y;
+//    var fwdNeighId = data[scatterTraceId].fwdNeighId;
+//    // draw lines between all the points that have neighbors
+//    // remove all old track_lines
+//    if(!layout.shapes) layout.shapes = [];
+//    var i = layout.shapes.length;
+//    while (i--) {
+//        if(layout.shapes[i].name)
+//            if(layout.shapes[i].name==='trackLine')
+//                layout.shapes.splice(i,1);
+//    }
+//    for(var i=0;i<px.length;++i){
+//        if(fwdNeighId[i]<0) continue;
+//        var track_line = {
+//                name: 'trackLine',
+//                type:'line',
+//                x0: px[i],
+//                x1: px[fwdNeighId[i]],
+//                y0: py[i],
+//                y1: py[fwdNeighId[i]],
+//                line: {color: 'yellow', width:2},
+//                opacity: 0.8,
+//                editable: false,
+//                visible: true
+//        };
+//        layout.shapes.push(track_line);
+//    }
+//}
