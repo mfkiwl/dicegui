@@ -359,6 +359,8 @@ function readSubsetFile(data){
                         if(isNaN(num_line[0])) break;
                         vertex++;
                         // if this is a tracking analysis, this could potentially be skipped since this info is stored in the shape centroids
+                        if(num_line[0]<0) num_line[0] = 0;
+                        if(num_line[1]<0) num_line[1] = 0;
                         subsetLocations.x.push(num_line[0]);
                         subsetLocations.y.push(num_line[1]);
                         blockingSubsets.push([]);
@@ -376,6 +378,8 @@ function readSubsetFile(data){
                         num_line = lines[line+1+vertex].match(/\S+/g).map(Number);
                         if(isNaN(num_line[0])) break;
                         vertex++;
+                        if(num_line[0]<0) num_line[0] = 0;
+                        if(num_line[1]<0) num_line[1] = 0;
                         vertex_x.push(num_line[0]);
                         vertex_y.push(num_line[1]);
                     }
@@ -670,11 +674,11 @@ function shapesToCentroids(shapes){
     // iterate the shapes and for each path shape, compute the centroid
     for(var i=0;i<shapes.length;++i){
         var cx = 0.0; var cy = 0.0;
-        if(shapes[i].type=='line'){
+        if(shapes[i].type=='line'||shapes[i].type=='rect'){
             cx = (shapes[i].x0 + shapes[i].x1)/2;
             cy = (shapes[i].y0 + shapes[i].y1)/2;
         }else if(shapes[i].type=='path'){
-            var points = pathShapeToPoints(shapes[i]);
+            var points = shapeToPoints(shapes[i]);
             var j = 0;
             var det = 0.0;
             for (var ii = 0; ii < points.x.length; ii++){
@@ -744,19 +748,30 @@ function pointsToPathShape(points,name){
     return shape;
 }
 
-function pathShapeToPoints(shape){
-    if(shape.type!='path'){
-        alert('invalid shape (non-path)');
+function shapeToPoints(shape){
+    if(shape.type!='path'&&shape.type!='rect'){
+        alert('invalid shape (non-path, non-rect)');
         return;
     }
-    var pathString = shape.path;
     var points = {x:[],y:[]};
-    var array = pathString.split(/(?:[A-Z,])/g);
-    array.shift(); // get rid of the empty elements at the start and end of the array
-    array.pop();
-    for(var i=0;i<array.length;i++){
-        points.x.push(parseInt(array[i++]));
-        points.y.push(parseInt(array[i]));
+    if(shape.type=='path'){
+        var pathString = shape.path;
+        var array = pathString.split(/(?:[A-Z,])/g);
+        array.shift(); // get rid of the empty elements at the start and end of the array
+        array.pop();
+        for(var i=0;i<array.length;i++){
+            points.x.push(parseInt(array[i++]));
+            points.y.push(parseInt(array[i]));
+        }
+    }else if(shape.type=='rect'){
+        points.x.push(parseInt(shape.x0));
+        points.x.push(parseInt(shape.x1));
+        points.x.push(parseInt(shape.x1));
+        points.x.push(parseInt(shape.x0));
+        points.y.push(parseInt(shape.y0));
+        points.y.push(parseInt(shape.y0));
+        points.y.push(parseInt(shape.y1));
+        points.y.push(parseInt(shape.y1));
     }
     return points;
 }

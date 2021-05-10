@@ -255,11 +255,11 @@
         <h1 style="margin-top: 20px;">ANALYSIS</h1>
         <div id="runLoader" class="pre-loader"></div>
         <ul>
+          <li id="runLi" class="action-li"><i class="material-icons md-dark md-br-pad">play_circle_filled</i>
+            <span>run 2d</span></li>
           <li id="changeWorkingDirLi" class="action-li"><i
             class="material-icons md-dark md-br-pad"
           >folder</i> set working dir</li>
-          <li id="runLi" class="action-li"><i class="material-icons md-dark md-br-pad">play_circle_filled</i>
-            <span>run 2d</span></li>
           <li id="writeLi" class="action-li"><i class="material-icons md-dark md-br-pad">archive</i>
             <span>save working dir</span></li>
           <li id="clearLi" class="action-li"><i class="material-icons md-dark md-br-pad">backspace</i>
@@ -300,6 +300,7 @@
                 <div class="toggle-div-banner">
                   <span class="toggle-title">IMAGE PREVIEW</span>
                   <span id="leftDims"></span> <span id="leftPos" style="padding-left:20px;"></span>
+                  <span id="warningLeft" style="padding-left:10px;"></span>
                   <span class="toggle-icon action-li" id="leftPaneToggle" title="hide this view"><i class="material-icons md-dark pane-closer" style="transform: rotate(270deg)">swap_vertical_circle</i></span>
                  <label id="loadSubsetFileInputIcon" for="loadSubsetFileInput" title="import subset locations" class="custom-file-input action-li full-field-and-tracking"
                     style="display: none;"></label>
@@ -327,6 +328,7 @@
                 <div class="toggle-div-banner">
                   <span class="toggle-title">STEREO IMAGE PREVIEW</span>
                   <span id="rightDims"></span> <span id="rightPos"  style="padding-left:20px;"></span>
+                  <span id="warningRight" style="padding-left:10px;"></span>
                   <span class="toggle-icon action-li" title="hide this view"><i
                     class="material-icons md-dark pane-closer" style="transform: rotate(270deg)"
                   >swap_vertical_circle</i></span>
@@ -699,7 +701,6 @@
                 </select>
               </div>
               <div id="generalParams" class="param-options non-tracklib-tools">
-                <p>filtering:</p>
                 <p>
                   <input id="filterCheck" type="checkbox"> gauss filter images
                 </p>
@@ -708,6 +709,13 @@
                 </p>
                 <input id="filterSize" style="margin-bottom: 10px;" type="range" min="5" max="13"
                   defaultValue="5" value="5" step="2"
+                >
+                <p><input id="incrementalCheck" type="checkbox"> use incremental</p>
+                <p><input id="equalizeHistCheck" type="checkbox"> equalize preview histogram</p>
+                <p><input id="brightnessCheck" type="checkbox"> brighten preview</p>
+                <p>brightness: <label id="brightnessLabel">0</label></p>
+                <input id="brightnessBeta" style="margin-bottom: 10px;" type="range" min="-200" max="200"
+                  defaultValue="0" value="0" step="10"
                 >
                 <p><b>results</b></p>
                 <hr style="width:100%;text-align:left;margin-left:0; margin-bottom:10px;">

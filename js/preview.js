@@ -457,6 +457,7 @@ function getPreviewConfig(dest){
         if(dest=='left'){
             _config.modeBarButtonsToAdd = [
                 'drawclosedpath',
+                'drawrect',
                 'eraseshape',
                 'drawline',
                 showSubsetLocationsButton,
@@ -468,6 +469,7 @@ function getPreviewConfig(dest){
         if(dest=='left'){
             _config.modeBarButtonsToAdd = [
                 'drawclosedpath',
+                'drawrect',
                 'eraseshape',
                 'drawline',
                 deleteLivePlotPtsButton];
@@ -482,6 +484,7 @@ function getPreviewConfig(dest){
         }else if(dest=='left'){
             _config.modeBarButtonsToAdd = [
                 'drawclosedpath',
+                'drawrect',
                 'eraseshape',
                 showSubsetLocationsButton,
                 importSubsetLocationsButton];
@@ -793,6 +796,8 @@ $("#plotlyViewerRight").mousemove(function( event ) {
     document.getElementById('rightPos').innerText = '['+xInDataCoord+','+yInDataCoord+']';
 });
 
+document.getElementById
+
 $("#plotlyViewerLeft").on('click', function(event){ // note: not plotly_click, to register clicks anywhere in the DOM, not just on a plotly plot
     if($("#analysisModeSelect").val()!="tracking"&&event.which==2){
         var xInDataCoord = parseInt(coordsXaxisLeft.p2c(event.offsetX - coordsLeftLeft));
@@ -801,8 +806,74 @@ $("#plotlyViewerLeft").on('click', function(event){ // note: not plotly_click, t
     }
 });
 
+function computeEpipolarY0Y1(event,dest){
+    var xInDataCoord = parseInt(coordsXaxisLeft.p2c(event.offsetX - coordsLeftLeft));
+    var yInDataCoord = parseInt(coordsYaxisLeft.p2c(event.offsetY - coordsTopLeft));
+    if(xInDataCoord<0) return;
+    if(yInDataCoord<0) return;
+//    alert("I am here " + xInDataCoord + " " + yInDataCoord);
+    var child_process = require('child_process');
+    var readline      = require('readline');
+    args = [];
+    args.push(xInDataCoord);
+    args.push(yInDataCoord);
+    args.push(calPath);
+    if(dest=='left')
+        args.push(1); // indicates left image
+    else
+        args.push(2);
+    var proc = child_process.spawn(execEpilinePath,args,{cwd:workingDirectory});//,maxBuffer:1024*1024});
+    proc.on('error', function(){
+        alert('DICe Epiline utility failed: invalid executable: ' + execEpilinePath);
+    });
+    proc.on('close', (code) => {
+        console.log(`Epiline utility exited with code ${code}`);
+        // execute call back with error code
+        if(code==0){
+            fs.stat(fullPath('.dice','.epiline.txt'), function(err, stat) {
+                if(err == null) {
+                    // grab the line y0 and y1 from the text file
+                    fs.readFile(fullPath('.dice','.epiline.txt'),'utf8', function (err,data) {
+                        if (err) {
+                            console.log(err);
+                            return false;
+                        }
+                        var coeffs = data.toString().split(/\s+/g).map(Number);
+                        drawEpipolarLine(dest,coeffs[0],coeffs[1]);
+//                        alert("y0 " + coeffs[0]);
+//                        alert("y1 " + coeffs[1]);
+                    }); // end else
+                }
+            });
+        }else{
+            console.log('Epiline error ocurred ' + code);
+        }
+    });
+    readline.createInterface({
+        input     : proc.stdout,
+        terminal  : false
+    }).on('line', function(line) {
+        console.log(line);
+    });
+}
+
+document.getElementById("plotlyViewerLeft").addEventListener('mousedown', (ev) => {
+    if(calPath==undefined) return;
+    if(calPath=="") return;
+    if(ev.which==3){
+        computeEpipolarY0Y1(event,'left');
+    } // end which == 3
+})
+document.getElementById("plotlyViewerRight").addEventListener('mousedown', (ev) => {
+    if(calPath==undefined) return;
+    if(calPath=="") return;
+    if(ev.which==3){
+        computeEpipolarY0Y1(event,'right');
+    } // end which == 3
+})
+
 function isInShape(cx,cy,shape){
-    var points = pathShapeToPoints(shape);
+    var points = shapeToPoints(shape);
     var vertices_x = points.x;
     var vertices_y = points.y;
     var num_vertices = vertices_x.length;
@@ -860,7 +931,7 @@ function drawRepresentativeSubset(){
         return obj.name === "representativeSubset";
     });
     if(existingBoxIndex>=0){
-        var boxPoints = pathShapeToPoints(existingShapes[existingBoxIndex]);
+        var boxPoints = shapeToPoints(existingShapes[existingBoxIndex]);
         cx = (boxPoints.x[0] + boxPoints.x[1])/2;
         cy = (boxPoints.y[0] + boxPoints.y[3])/2;
     }
@@ -1061,7 +1132,6 @@ function updateLivePlotLine(deleteOnly = false){
         }
     }
     if(deleteOnly){
-        alert('deleting old line index ' + oldLineIndex);
         deleteShape(oldLineIndex);
         var update = {'shapes' : getPlotlyShapes()};
         Plotly.relayout(destToPlotlyDiv('left'),update);
@@ -1083,9 +1153,10 @@ function updateLivePlotLine(deleteOnly = false){
 function assignShapeNames(){
     var relayoutNeeded = false;
     var shapes = getPlotlyShapes(); // get all shapes, not just ROIs
+    //console.log(shapes);
     var i = shapes.length;
     while (i--) {
-        if(shapes[i].name===undefined&&shapes[i].type==='path'){
+        if(shapes[i].name===undefined&&(shapes[i].type==='path'||shapes[i].type==='rect')){
             if($("#showDeformedCheck")[0].checked){
                 alert('cannot add ROIs while show tracked ROIs is active');
                 deleteShape(i);
@@ -1415,7 +1486,57 @@ function updateNeighInfoTrace(dest,index){
     }
 }
 
-function drawEpipolarLine(dest,index){ 
+function drawEpipolarLine(dest,y0,y1){
+    // *** NOTE for this method, dest is where the click event ocurred,
+    //          the line should appear in the opposite image
+    var pvIn = document.getElementById("plotlyViewerLeft");
+    var pvOut = document.getElementById("plotlyViewerRight");
+    if(dest=='right'){
+        var pvIn = document.getElementById("plotlyViewerRight");
+        var pvOut = document.getElementById("plotlyViewerLeft");
+    }
+    undrawShape('','epipolarLine');
+    var pvl = pvOut.layout;
+    if(!pvl) return;
+    var w = pvl.images[0].sizex;
+    
+    // check if epipolar line exists and get it's points
+    var existingShapes = [];
+    var existingEpipolarIndex = -1;
+    if(pvl.shapes)
+        existingShapes = pvl.shapes;
+    for(var i=0;i<existingShapes.length;++i){
+        if(existingShapes[i].name){
+            if(existingShapes[i].name==='epipolarLine')
+                existingEpipolarIndex = i;
+        }
+    }
+    if(existingEpipolarIndex>=0){ // assume if one exists all three exist
+        existingShapes[existingEpipolarIndex].y0 = y0;
+        existingShapes[existingEpipolarIndex].y1 = y1;
+        existingShapes[existingEpipolarIndex].visible = true;
+    }else{
+        var x0 = 0;
+        var x1 = w;
+        var epiLine = {
+                name: 'epipolarLine',
+                type:'line',
+                x0: x0,
+                x1: x1,
+                y0: y0,
+                y1: y1,
+                line: {color: 'red', width:2},
+                opacity: 0.8,
+                editable: false,
+                visible: true
+        };
+        existingShapes.push(epiLine);
+    }
+    var update = {'shapes' : existingShapes}
+    Plotly.relayout(pvOut,update);
+}
+
+function drawEpipolarLinePoltly(dest,index){ 
     // *** NOTE for this method, dest is where the click event ocurred,
     //          the line should appear in the opposite image
     if(!$("#analysisModeSelect").val()=="tracking"||showStereoPane!=1) return;

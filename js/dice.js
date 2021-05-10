@@ -293,7 +293,16 @@ function updateCineDisplayImage(fileName,index,dest,cb){
     // this assumes that fileName is not alredy decorated
     var decoratedFile = fileName.replace('.'+fileName.split('.').pop(),'_'+index+'.cine');
     console.log('updating cine display image: ' + decoratedFile);
-    updatePreviewImage({srcPath:decoratedFile,dest:dest},cb);
+    args = [];
+    if($("#brightnessCheck")[0].checked){
+        args.push("filter:brightness");
+        args.push("brightness");
+        args.push($("#brightnessBeta").val());
+    }
+    if($("#equalizeHistCheck")[0].checked){
+        args.push("filter:equalize_hist");
+    }
+    updatePreviewImage({argsIn:args,srcPath:decoratedFile,dest:dest},cb);
 }
 
 function callCineStatExec(path,mode,callback) {
@@ -395,12 +404,6 @@ function callCineStatExec(path,mode,callback) {
         }); // end proc.on    
     }); // end fileName fs.stat
 }
-
-//function deactivateEpipolar(){
-//    $("#drawEpipolar").css('color','rgba(0, 0, 0, 0.5)');
-//    drawEpipolarActive = false;
-//    drawEpipolarLine(false,0,0,true);
-//}
 
 function updateTracklibDisplayImages(index,loadData=true){
     console.log('updateTracklibDisplayImages()');
@@ -866,20 +869,25 @@ function writeLivePlotsFile() {
         return obj.name === "live plot pts";
     });
     console.log('writeLivePlotsFile(): livePlotPtsTraceId ' + livePlotPtsTraceId);
-    if(livePlotPtsTraceId<0) return;
-    var x = data[livePlotPtsTraceId].x;
-    var y = data[livePlotPtsTraceId].y;
+    var x;
+    var y;
+    if(livePlotPtsTraceId>=0){
+        x = data[livePlotPtsTraceId].x;
+        y = data[livePlotPtsTraceId].y;
+    }
     var lineShapes = getPlotlyShapes('livePlotLine');
     if(lineShapes.length>1){
         alert('error ocurred in determining live plot line shapes');
     }
-    if(x.length > 0||lineShapes.length==1){
+    if(livePlotPtsTraceId>=0||lineShapes.length==1){
         var livePlotFile = fullPath('','live_plot.dat');
         console.log('writing live plot data file ' + livePlotFile);
         var LPcontent = '';
         LPcontent += '# two numbers is a point four numbers is a line\n';
-        for(var i=0;i<x.length;++i){
-            LPcontent += x[i] + ' ' + y[i] + '\n'
+        if(livePlotPtsTraceId>=0){
+            for(var i=0;i<x.length;++i){
+                LPcontent += x[i] + ' ' + y[i] + '\n'
+            }
         }
         if(lineShapes.length==1)
             LPcontent += Math.floor(lineShapes[0].x0) + ' ' + Math.floor(lineShapes[0].y0) + 
@@ -1015,6 +1023,9 @@ function writeParamsFile(only_write,resolution,ss_locs) {
             var validShapeFunctions = false;
             content += '<Parameter name="sssig_threshold" type="double" value="'+$("#sssigThresh").val()+'" />\n';
             content += '<Parameter name="optimization_method" type="string" value="GRADIENT_BASED" />\n';
+            if(showStereoPane==1){
+                content += '<Parameter name="cross_initialization_method" type="string" value="USE_SPACE_FILLING_ITERATIONS" />\n';
+            }
             var initMode = $("#initSelect").val();
             if(initMode=="featureMatching"){
                 content += '<Parameter name="initialization_method" type="string" value="USE_FEATURE_MATCHING" />\n';
@@ -1069,7 +1080,7 @@ function writeParamsFile(only_write,resolution,ss_locs) {
             content += '<Parameter name="plotly_contour_grid_step" type="int" value=" ' + $("#stepSize").val() + '" />\n';
             content += '</ParameterList>\n';
         }else if($("#analysisModeSelect").val()=="global"){
-            content += '<Parameter name="max_solver_iterations_fast" type="int" value="500" />\n';
+            content += '<Parameter name="max_solver_iterations_fast" type="int" value="25" />\n';
             content += '<Parameter name="global_solver" type="string" value="gmres_solver" />\n';
             content += '<Parameter name="global_formulation" type="string" value="horn_schunck" />\n';
             content += '<Parameter name="global_regularization_alpha" type="double" value="'+$("#regularizationConstant").val()+'" />\n';
@@ -1079,7 +1090,8 @@ function writeParamsFile(only_write,resolution,ss_locs) {
                 content += '<Parameter name="global_element_type" type="string" value="TRI6" />\n';
             }
             content += '<ParameterList name="post_process_plotly_contour">\n';
-            content += '<Parameter name="plotly_contour_grid_step" type="int" value=" ' + $("#meshSize").val() + '" />\n';
+            var plotly_step = parseInt(Math.sqrt(parseFloat($("#meshSize").val())));
+            content += '<Parameter name="plotly_contour_grid_step" type="int" value="' + plotly_step + '" />\n';
             content += '</ParameterList>\n';
         }else{ // assume tracking at this point
             content += '<Parameter name="use_tracking_default_params" type="bool" value="true" />\n';
@@ -1098,6 +1110,9 @@ function writeParamsFile(only_write,resolution,ss_locs) {
         if($("#filterCheck")[0].checked){
             content += '<Parameter name="gauss_filter_images" type="bool" value="true" />\n';
             content += '<Parameter name="gauss_filter_mask_size" type="int" value="'+$("#filterSize").val()+'" />\n';
+        }
+        if($("#incrementalCheck")[0].checked){
+            content += '<Parameter name="use_incremental_formulation" type="bool" value="true" />\n';
         }
         content += '<Parameter name="output_delimiter" type="string" value="," />\n'
             content += '<ParameterList name="output_spec"> \n';
@@ -1190,7 +1205,7 @@ function writeSubsetFile(only_write,resolution,ss_locs){
         for(var i=0;i<numROIs;++i){
             content += '    begin polygon\n';
             content += '      begin vertices\n';
-            var points = pathShapeToPoints(pathShapes[i]);
+            var points = shapeToPoints(pathShapes[i]);
             for(var j=0;j<points.x.length;j++){
                 content += '        ' +  points.x[j] + ' ' + points.y[j] + '\n';
             }
@@ -1203,7 +1218,7 @@ function writeSubsetFile(only_write,resolution,ss_locs){
             for(var i = 0; i < numExcluded; i++) {
                 content += '    begin polygon\n';
                 content += '      begin vertices\n';
-                var points = pathShapeToPoints(excludedShapes[i]);
+                var points = shapeToPoints(excludedShapes[i]);
                 for(var j=0;j<points.x.length;j++){
                     content += '        ' +  points.x[j] + ' ' + points.y[j] + '\n';
                 }
@@ -1222,7 +1237,7 @@ function writeSubsetFile(only_write,resolution,ss_locs){
             content += '  begin boundary\n';
             content += '    begin polygon\n'; 
             content += '      begin vertices\n';
-            var points = pathShapeToPoints(pathShapes[i]);
+            var points = shapeToPoints(pathShapes[i]);
             for(var j=0;j<points.x.length;j++){
                 content += '        ' +  points.x[j] + ' ' + points.y[j] + '\n';
             }
@@ -1252,7 +1267,7 @@ function writeSubsetFile(only_write,resolution,ss_locs){
                 if(excludedId == i){
                     content += '    begin polygon\n'; 
                     content += '      begin vertices\n';
-                    var points = pathShapeToPoints(excludedShapes[j]);
+                    var points = shapeToPoints(excludedShapes[j]);
                     for(var k=0;k<points.x.length;k++){
                         content += '        ' +  points.x[k] + ' ' + points.y[k] + '\n';
                     }
@@ -1278,7 +1293,7 @@ function writeSubsetFile(only_write,resolution,ss_locs){
                 if(obstructedId == i){
                     content += '    begin polygon\n'; 
                     content += '      begin vertices\n';
-                    var points = pathShapeToPoints(obstructedShapes[j]);
+                    var points = shapeToPoints(obstructedShapes[j]);
                     for(var k=0;k<points.x.length;k++){
                         content += '        ' +  points.x[k] + ' ' + points.y[k] + '\n';
                     }
@@ -1545,17 +1560,20 @@ function getContourJsonFileName(leastSquares = false){
 }
 
 function populateContourFields(){
-    // TODO make this switch on analysis type
     $("#contourFieldSelect").empty();
     $("#contourFieldSelect").append(new Option('COORDINATE_X','COORDINATE_X'));
     $("#contourFieldSelect").append(new Option('COORDINATE_Y','COORDINATE_Y'));
     $("#contourFieldSelect").append(new Option('DISPLACEMENT_X','DISPLACEMENT_X'));
     $("#contourFieldSelect").append(new Option('DISPLACEMENT_Y','DISPLACEMENT_Y'));
     if($("#analysisModeSelect").val()=="subset"){
+        if(showStereoPane==1){
+            $("#contourFieldSelect").append(new Option('MODEL_COORDINATES_X','MODEL_COORDINATES_X'));
+            $("#contourFieldSelect").append(new Option('MODEL_COORDINATES_Y','MODEL_COORDINATES_Y'));
+            $("#contourFieldSelect").append(new Option('MODEL_COORDINATES_Z','MODEL_COORDINATES_Z'));
+        }
         $("#contourFieldSelect").append(new Option('SIGMA','SIGMA'));
-        $("#contourFieldSelect").append(new Option('GAMMA','GAMMA'));
         $("#contourFieldSelect").append(new Option('BETA','BETA'));
-        $("#contourFieldSelect").append(new Option('STATUS_FLAG','STATUS_FLAG'));
+        $("#contourFieldSelect").append(new Option('GAMMA','GAMMA'));
         $("#contourFieldSelect").append(new Option('UNCERTAINTY','UNCERTAINTY'));
         $("#contourFieldSelect").append(new Option('VSG_STRAIN_XX','VSG_STRAIN_XX'));
         $("#contourFieldSelect").append(new Option('VSG_STRAIN_YY','VSG_STRAIN_YY'));
@@ -1564,7 +1582,9 @@ function populateContourFields(){
         $("#contourFieldSelect").append(new Option('GREEN_LAGRANGE_STRAIN_XX','GREEN_LAGRANGE_STRAIN_XX'));
         $("#contourFieldSelect").append(new Option('GREEN_LAGRANGE_STRAIN_YY','GREEN_LAGRANGE_STRAIN_YY'));
         $("#contourFieldSelect").append(new Option('GREEN_LAGRANGE_STRAIN_XY','GREEN_LAGRANGE_STRAIN_XY'));
+        $("#contourFieldSelect").append(new Option('GLOBAL_GRAY_DIFF','GLOBAL_GRAY_DIFF'));
     }
+    $("#contourFieldSelect").append(new Option('STATUS_FLAG','STATUS_FLAG'));
 }
 
 function checkContourJsonFileExists(){
